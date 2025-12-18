@@ -135,5 +135,3 @@ The graph is constructed with layers. Search starts at the sparse top layer (Lay
 MIT License. Free to use and modify.
 
 ```
-
-***
