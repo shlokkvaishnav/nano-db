@@ -1,0 +1,10 @@
+^C:\USERS\SHLOK\ONEDRIVE\DESKTOP\PROJECTS\NANO-DB\BUILD\CMAKEFILES\BB70CB07E5EE7B6486B485FCCE6A48E2\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/shlok/OneDrive/Desktop/Projects/nano-db -BC:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/NanoDB.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

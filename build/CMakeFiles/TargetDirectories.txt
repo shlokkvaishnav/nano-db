@@ -1,0 +1,6 @@
+C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/CMakeFiles/nano_db.dir
+C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/CMakeFiles/RUN_TESTS.dir
+C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/CMakeFiles/ZERO_CHECK.dir
+C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/tests/CMakeFiles/RUN_TESTS.dir
+C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/tests/CMakeFiles/ALL_BUILD.dir

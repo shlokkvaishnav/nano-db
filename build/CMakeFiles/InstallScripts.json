@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/cmake_install.cmake",
+		"C:/Users/shlok/OneDrive/Desktop/Projects/nano-db/build/tests/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

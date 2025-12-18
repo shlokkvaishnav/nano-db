@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\shlok\OneDrive\Desktop\Projects\nano-db\build\CMakeFiles\b47a82105f9356e2d568e1b7e9de957a\RUN_TESTS_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{788BD946-7F56-37D9-BAA5-A48C299F213D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
