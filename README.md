@@ -144,19 +144,6 @@ The graph is constructed with layers. Search starts at the sparse top layer (Lay
 
 ---
 
-## 🔮 Roadmap
-
-* [x] Core HNSW Implementation
-* [x] Memory Mapped Storage
-* [x] AVX2 SIMD Optimization
-* [x] **Multi-Threaded Insertion (SpinLocks)**
-* [x] **Metadata Support (Append-Log)**
-* [x] **Python Bindings (Pybind11)**
-* [ ] Vector Quantization (PQ/SQ8)
-* [ ] REST API Wrapper
-
----
-
 ## 📜 License
 
 MIT License. Free to use and modify.
