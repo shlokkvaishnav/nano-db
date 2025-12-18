@@ -1,13 +1,12 @@
 #pragma once
 
-#include <cstddef> // for size_t
-#include <vector>
+#include <cstddef>
 
 namespace nanodb {
 
-    // We use Squared Euclidean Distance (L2-Squared).
-    // Why? Because sqrt() is expensive and strictly increasing (monotonic).
-    // If A < B, then sqrt(A) < sqrt(B). So for sorting/ranking, we don't need the sqrt.
+    // Calculates Squared Euclidean Distance (L2^2) between two vectors.
+    // Optimized with AVX2 SIMD instructions in the implementation (.cpp).
+    // Note: We skip sqrt() for performance since it preserves ranking order.
     float get_distance(const float* a, const float* b, size_t dim);
 
 } // namespace nanodb

@@ -2,65 +2,51 @@
 
 #include "../common/types.hpp"
 #include "../common/config.hpp"
-#include <cstring> // For memset
+#include <cstring>
+#include <vector>
 
 namespace nanodb {
 
-    // Maximum height of the HNSW graph.
-    // 4 layers is usually enough for ~1 million vectors.
+    // Max layers for HNSW graph (4 is sufficient for ~1M vectors)
     constexpr int MAX_LAYERS = 4;
 
-    // We use alignas(32) to ensure the vector array starts on a 32-byte boundary.
-    // This allows AVX2 instructions to load data faster (aligned load vs unaligned load).
+    // --- Node Structure ---
+    // alignas(32) ensures the struct starts on a 32-byte boundary in memory.
+    // This allows AVX2 to use aligned load instructions (vmovaps) which are faster.
     struct alignas(32) Node {
         
-        // ---------------------------------------------------------
-        // Header Data
-        // ---------------------------------------------------------
-        id_t id;          // External ID (e.g., User ID, Image ID)
-        int max_layer;    // The highest layer this node exists in (0 to MAX_LAYERS-1)
+        // Header
+        id_t id;          // External Identifier
+        int max_layer;    // Highest layer this node participates in
 
-        // ---------------------------------------------------------
-        // Vector Data (Inline)
-        // ---------------------------------------------------------
-        // The actual embedding.
+
+        // Vector Data
+        // Stored inline for locality (no pointer chasing)
         val_t vector[config::VECTOR_DIM];
 
-        // ---------------------------------------------------------
-        // Graph Connectivity (The HNSW Links)
-        // ---------------------------------------------------------
-        // A 2D array storing neighbor IDs for each layer.
-        // dim 1: Layer Index (0 is bottom, MAX_LAYERS-1 is top)
-        // dim 2: Neighbor Slot (up to M_MAX0 for layer 0, M for others)
-        // We use M_MAX0 for all layers to keep the struct simple (slightly wasteful but fast).
-        id_t neighbors[MAX_LAYERS][config::M_MAX0];
 
-        // Tracks how many neighbors are actually stored in each layer
+        // Graph Connectivity
+        // Neighbors for each layer. 
+        // We statically allocate M_MAX0 slots for all layers to keep the struct POD (Plain Old Data)
+        // for easy serialization to disk.
+        id_t neighbors[MAX_LAYERS][config::M_MAX0];
         int neighbor_counts[MAX_LAYERS];
 
-        // ---------------------------------------------------------
-        // Constructor
-        // ---------------------------------------------------------
+
+        // Constructors
+        Node() = default; // Needed for casting raw memory
+
         Node(id_t external_id, int level, const std::vector<float>& vec_data) 
             : id(external_id), max_layer(level) {
             
-            // 1. Copy Vector Data
-            // We ensure we don't overflow the fixed buffer
-            size_t copy_size = vec_data.size() > config::VECTOR_DIM ? config::VECTOR_DIM : vec_data.size();
-            for(size_t i = 0; i < copy_size; ++i) {
-                vector[i] = vec_data[i];
-            }
+            // Safe copy of vector data
+            size_t copy_size = (vec_data.size() > config::VECTOR_DIM) ? config::VECTOR_DIM : vec_data.size();
+            std::memcpy(vector, vec_data.data(), copy_size * sizeof(float));
 
-            // 2. Initialize Neighbors
-            // Set counts to 0
+            // Initialize neighbor lists to empty (-1)
             std::memset(neighbor_counts, 0, sizeof(neighbor_counts));
-            
-            // Set all neighbor slots to -1 (indicating empty)
             std::memset(neighbors, -1, sizeof(neighbors));
         }
-
-        // Default constructor for mmap casting
-        Node() = default;
     };
 
 } // namespace nanodb

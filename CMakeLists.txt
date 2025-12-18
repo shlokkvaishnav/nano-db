@@ -1,47 +1,41 @@
 cmake_minimum_required(VERSION 3.10)
 project(NanoDB VERSION 1.0.0 LANGUAGES CXX)
 
-# --- 1. Standard Configuration ---
+# Standard Configuration
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Generates compile_commands.json for clangd/VSCode
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # ensures your editor doesn't show red squigglies when you use AVX2 intrinsics or OpenMP directives.
 
-# --- 2. Performance Optimizations (SIMD & O3) ---
-# Detect system architecture (optional advanced step), but for now we hardcode for performance.
-# -O3: Maximum optimization
-# -march=native: Optimizes for the machine you are building on (enables AVX2 if available)
-# -mavx2 -mfma: Explicitly enable AVX2 and Fused Multiply-Add
+# Performance Optimizations
 if(MSVC)
-    # Windows/Visual Studio specific flags
+    # Windows (MSVC): Optimize for speed (/O2), enable AVX2 SIMD, and OpenMP
     add_compile_options(/O2 /arch:AVX2 /openmp)
 else()
-    # GCC/Clang (Linux/Mac/MinGW)
+    # Linux (GCC/Clang): Optimize for speed (-O3), native CPU architecture, AVX2, and threading
     add_compile_options(-O3 -march=native -mavx2 -mfma -Wall -Wextra -pthread)
 endif()
 
-# --- 3. Dependencies ---
-# OpenMP for multi-threading HNSW graph construction
-find_package(OpenMP REQUIRED)
+# Dependencies
+find_package(OpenMP REQUIRED) # Required for multi-threaded graph construction
 
-# --- 4. Include Directories ---
-include_directories(include)
+# Include Directories
+include_directories(include) # Expose the 'include' folder globally
 
-# --- 5. Source Files ---
-# We manually list sources to avoid Globbing issues, keeping the build deterministic.
+#Source Files
 set(SOURCES
     src/main.cpp
     src/core/distance.cpp
     src/storage/mmap_handler.cpp
 )
 
-# --- 6. Build Executable ---
+# Build Executable
 add_executable(nano_db ${SOURCES})
 
-# Link OpenMP to the executable
+# Link OpenMP library to the target executable
 if(OpenMP_CXX_FOUND)
     target_link_libraries(nano_db PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-# --- 7. Testing (Optional Future Step) ---
+# Testing
 enable_testing()
-add_subdirectory(tests) # We will configure the tests/CMakeLists.txt later
+add_subdirectory(tests) # Initialize test suite

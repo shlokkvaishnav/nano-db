@@ -6,44 +6,28 @@ namespace nanodb {
 
     namespace config {
 
-        // ---------------------------------------------------------
         // Data Dimensions
-        // ---------------------------------------------------------
-        
-        // The number of dimensions in your vectors (e.g., 128 for FaceNet/BERT-tiny).
-        // IMPORTANT: For AVX2 optimization, this should ideally be a multiple of 8.
+        // Vector dimension (Keep multiple of 8 for AVX2 optimization)
         constexpr size_t VECTOR_DIM = 128; 
 
-        // Maximum number of vectors we expect to hold (can be dynamic, but useful for pre-allocation)
+        // Soft limit for pre-allocation estimates
         constexpr size_t MAX_ELEMENTS = 100000; 
 
 
-        // ---------------------------------------------------------
         // HNSW Algorithm Hyperparameters
-        // ---------------------------------------------------------
-
-        // 'M': The number of bi-directional links created for every new element during construction.
-        // Higher M = higher recall but higher memory usage.
-        // Reasonable range: 12 to 48.
+        // Max bidirectional links per element (Range: 12-48). Higher = better recall, more RAM.
         constexpr int M = 16; 
 
-        // 'M_MAX0': Max connections in the bottom layer (Layer 0).
-        // Usually 2 * M. The bottom layer needs to be denser for precision.
+        // Max connections in Layer 0 (Bottom layer needs higher density)
         constexpr int M_MAX0 = M * 2; 
 
-        // 'efConstruction': The size of the dynamic candidate list during insertion.
-        // Higher = better graph quality, but slower indexing.
+        // Size of candidate list during insertion (Higher = better quality, slower build)
         constexpr int EF_CONSTRUCTION = 200; 
 
-        // ---------------------------------------------------------
+        
         // System Settings
-        // ---------------------------------------------------------
-        
-        // Default path for the persistent storage file
         constexpr char DB_FILE_PATH[] = "data/index.ndb";
-        
-        // Memory page size (usually 4KB), used for aligning memory mappings
-        constexpr size_t PAGE_SIZE = 4096;
+        constexpr size_t PAGE_SIZE = 4096; // Standard 4KB page alignment
 
     } // namespace config
 
