@@ -1,0 +1,8 @@
+{
+    "python.analysis.extraPaths": [
+        "./build/Release"
+    ],
+    "python.autoComplete.extraPaths": [
+        "./build/Release"
+    ]
+}

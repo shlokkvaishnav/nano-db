@@ -27,20 +27,23 @@ int main() {
     cout << "   NanoDB: High-Performance Vector Engine   " << endl;
     cout << "============================================" << endl;
 
-    // Initialize MMap Storage
     string db_path = "data/index.ndb";
+    string meta_path = "data/metadata.bin"; // New: Metadata file path
+
+    // Initialize MMap Storage
     MMapHandler storage;
     try {
-        storage.open_file(db_path, 1024 * 1024); // Start with 1MB
+        // Pre-allocate 50MB to prevent resizing crashes during parallel insert
+        storage.open_file(db_path, 50 * 1024 * 1024); 
         cout << "[Storage] MMap initialized at: " << db_path << endl;
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
         return 1;
     }
 
-    // Initialize Index
+    // Initialize Index (Now passes meta_path)
     cout << "[Index] Initializing HNSW Graph..." << endl;
-    HNSW index(storage);
+    HNSW index(storage, meta_path);
 
     // Generate Data
     const int NUM_VECTORS = 10000;
@@ -57,7 +60,10 @@ int main() {
     auto start = chrono::high_resolution_clock::now();
 
     for (int i = 0; i < NUM_VECTORS; ++i) {
-        index.insert(dataset[i], i);
+        // Add dummy metadata: "Item_0", "Item_1", etc.
+        string meta = "Item_" + to_string(i);
+        index.insert(dataset[i], i, meta);
+
         if ((i + 1) % 1000 == 0) cout << "  - Inserted " << (i + 1) << "\r" << flush;
     }
     
@@ -70,7 +76,9 @@ int main() {
     cout << "\n[Benchmark] Searching..." << endl;
     int target_id = 500;
     vector<float> query = dataset[target_id];
-    query[0] += 0.01f; // Add noise
+    
+    // Add slight noise to simulate a real query (not exact match)
+    query[0] += 0.001f; 
 
     auto s_start = chrono::high_resolution_clock::now();
     auto results = index.search(query, 5);
@@ -79,10 +87,13 @@ int main() {
     cout << "  - Time: " << (chrono::duration<double>(s_end - s_start).count() * 1000) << " ms" << endl;
     
     // Results
-    cout << left << setw(10) << "Rank" << setw(10) << "ID" << "Distance" << endl;
-    cout << "--------------------------------" << endl;
+    cout << left << setw(10) << "Rank" << setw(10) << "ID" << setw(15) << "Metadata" << "Distance" << endl;
+    cout << "--------------------------------------------------------" << endl;
     for (size_t i = 0; i < results.size(); ++i) {
-        cout << left << setw(10) << (i + 1) << setw(10) << results[i].id << results[i].distance << endl;
+        cout << left << setw(10) << (i + 1) 
+             << setw(10) << results[i].id 
+             << setw(15) << results[i].metadata // Print metadata
+             << results[i].distance << endl;
     }
 
     storage.close_file();
