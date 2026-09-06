@@ -72,9 +72,109 @@ Outcome (a) or (b) updates `RESULTS.md`, the README's Raw data status section, a
 
 **A different machine is a different measurement**, so timing-sensitive quantities (kill spacing, replication lag, settle-window adequacy) may differ. **Docker adds a layer** the original did not have; if results differ, the container is a live hypothesis and must be named as one. **Corpus download integrity** — verified before use. **Not a fresh test of the hypothesis** — see the interpretation plan.
 
+## Amendment 1 (2026-09-06, before the sweep): the experiment runs off the bind mount
+
+Written after `deps`, `build` and `corpus` and **before any sweep run**, so no
+result influenced it. Two defects in the harness, both found by trying to run it.
+
+### (a) The harness could not run on the only host it exists for
+
+`sh()` built shell command strings and quoted them with `shlex.quote()` under
+`subprocess.run(shell=True)`. On Windows `shell=True` runs `cmd.exe`, which does
+not treat single quotes as quoting at all. So the very first command died:
+
+```
+-v 'C:\...\Replica-Recall-Divergence':/repo   ->  invalid mode: /repo
+```
+
+Docker split on the colon in `C:` because the quotes were literal characters.
+`bash -lc 'apt-get ...'` was broken the same way — bash would have received
+`'apt-get` as its entire command.
+
+This is worth stating plainly because of what this study's README argues: the
+container exists *because* the dev host is Windows with no `g++` and no
+`protoc`. A harness whose command construction only works under a POSIX shell
+cannot run anywhere it is needed. Fixed by passing **argument lists** to
+`subprocess.run`, which removes the quoting layer rather than making it
+platform-conditional. Only the string handed to `bash -lc` inside the container
+stays a string, where POSIX quoting is correct by definition.
+
+### (b) The bind mount is not a filesystem the substrate's assumptions hold on
+
+With the build running against the mounted repo, **`ctest` failed the go/no-go
+gate** — 8 of 9 passing, `ClusterConfigRace` failing:
+
+```
+[ClusterConfigRace] writes=213 reads=920 read_failures=2
+FAILED: save_cluster_config is not atomic with respect to concurrent
+        load_cluster_config calls.
+```
+
+Under this spec's own rules that is outcome (iii): the substrate no longer
+passes its tests, and the sweep does not run. **It would have been the wrong
+call**, and the reason it is wrong is measurable.
+
+Deterministic, not flaky: **10 of 10 runs failed** on the mount. Running the same
+binary with its working directory on the container's own filesystem: **5 of 5
+passed, with 0 read failures out of ~90,000 concurrent reads per run.** The
+difference is not marginal — the on-mount runs completed 920 reads where the
+off-mount runs completed 75,766–93,228 in the same second.
+
+Measured directly, mount versus container filesystem:
+
+| | bind mount (`/repo`) | container fs (`/tmp`) | penalty |
+|---|---|---|---|
+| bulk write, 200 MiB `conv=fsync` | 118 MB/s | 933 MB/s | **7.9×** |
+| 300 × create + rename + unlink | 4.29 s | 0.87 s | **4.9×** |
+| `ClusterConfigRace` | 10/10 fail | 5/5 pass | — |
+
+CI runs the identical `ctest` on `ubuntu-latest` and is green, which agrees:
+the substrate is fine and the mount is the variable.
+
+So the gate failure was an **instrument artifact**, and the instrument was the
+filesystem. Two consequences:
+
+1. **Outcome (iii) is not triggered.** After the fix the gate passes **9/9** in
+   the container. The substrate builds and its tests hold.
+2. **The sweep must not run on the mount either**, and this is the more
+   important half. Layer 1 measures recall under chaos across 180 s and 300 s
+   windows, with nodes writing and renaming state throughout. A filesystem that
+   is 5–8× slower and does not give rename the atomicity the code assumes would
+   not merely add noise — it would change kill spacing, replication lag and
+   settle-window adequacy, which are exactly the quantities the Confounds
+   section already flags as machine-sensitive. A reproduction run there would
+   not be a reproduction of the published protocol.
+
+**The change.** `deps` now `rsync`s the repo from the mount to `/work` on the
+container's own filesystem, excluding `build/` (CMake caches absolute paths) and
+`results_sweep/`. Build, corpus and every run happen in `/work`. Results are
+synced back to the mount after **each sweep cell**, not only at the end, so an
+interrupted sweep does not lose completed runs. Submodule init still happens on
+the mount, since that is where the git directory lives.
+
+The resumability check moved into the container with it: it previously tested a
+host path that runs no longer write to, so every resume would have silently
+redone the entire sweep.
+
+### What this does not change, and what it costs
+
+**No protocol parameter is touched.** Seeds, durations, `--dist sift`,
+`--sift-vectors`, `run_experiment.py` and `aggregate.py` are all exactly as
+published. What changed is *where the process's working directory points*.
+
+The honest cost: this moves the experiment one step further from the original
+host, not closer. The README already says the container is part of the
+measurement; now the filesystem is too, and the write-up must say so. The
+alternative was worse — running on a filesystem measurably unable to support the
+substrate's concurrency assumptions, and reporting whatever came out as a
+failure to reproduce.
+
+**It also means the mount is a confound for every other containerised study on
+this host**, not just this one. Filed as a consequence rather than fixed here.
+
 ## Results
 
-*(no runs yet)*
+*(no sweep runs yet — `deps`, `build` (9/9) and `corpus` complete)*
 
 ## Interpretation
 

@@ -35,6 +35,18 @@ Its first version asserted **exactly 1,000,000 base vectors** and failed a perfe
 
 It verifies the header dimension, that the file size is a whole number of records (a partial write, as distinct from a deliberate prefix), and that enough vectors are present. Verified in both directions: exit 0 on the real corpus, exit 1 when asked for more than exists.
 
+## The bind mount is part of the measurement too (Amendment 1)
+
+Two defects surfaced on the first real attempt to run this, both fixed before any sweep run.
+
+**The harness could not run on Windows** — the host it exists for. It built shell strings and quoted them with `shlex.quote()` under `subprocess.run(shell=True)`, but `shell=True` on Windows is `cmd.exe`, where single quotes are literal characters. Docker saw `-v 'C:\...':/repo`, split on the colon in `C:`, and died with `invalid mode: /repo`. Now every command is passed as an argument list.
+
+**`ctest` then failed the go/no-go gate, and it was the filesystem lying.** `ClusterConfigRace` failed 10/10 with the repo bind-mounted from Windows/OneDrive, reporting that `save_cluster_config` is not atomic against concurrent readers. Run with its working directory on the container's own filesystem, the same binary passed 5/5 with **0 failures in ~90,000 concurrent reads per run** — where the mounted runs managed 920 reads total. Measured: the mount is **7.9× slower** for bulk writes (118 vs 933 MB/s) and **4.9× slower** for create+rename+unlink. CI runs the same `ctest` on `ubuntu-latest` and is green.
+
+So the gate failure was an instrument artifact — outcome (iii) does **not** apply, and the build now passes **9/9**. The larger consequence is that the sweep must not run there either: Layer 1 measures recall under chaos over 180 s and 300 s windows, and a filesystem 5–8× slower without atomic rename would change kill spacing, replication lag and settle-window adequacy — the exact quantities `SPEC.md`'s Confounds section flags as machine-sensitive.
+
+The repo is now `rsync`ed to `/work` inside the container and everything runs there; results sync back to the mount after each cell. **No protocol parameter changed** — only where the working directory points. The cost is honest and goes in the write-up: this puts the reproduction one step further from the original host, not closer.
+
 ## Where the data will land
 
 `results_sweep/seed<N>_{baseline,chaos}/`, the layout `aggregate.py --sweep-dir` expects.

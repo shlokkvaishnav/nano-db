@@ -44,6 +44,13 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 IMAGE = "ubuntu:24.04"
 CONTAINER = "rrd-layer1"
 
+# The bind mount, and the container-local working copy the experiment actually
+# runs in. Amendment 1: the Windows/OneDrive bind mount is not a filesystem the
+# substrate's assumptions hold on. MOUNT is for source in and results out; every
+# build artifact, the corpus, and every run live in WORK.
+MOUNT = "/repo"
+WORK = "/work"
+
 # Exactly CI's toolchain list (.github/workflows/ci.yml), so a build that works
 # in CI works here. Divergence between the two would be its own confound.
 APT = ("cmake g++ libomp-dev protobuf-compiler protobuf-compiler-grpc "
@@ -62,42 +69,125 @@ DEST_SWEEP = "research/layer1_reproduction/results_sweep"
 CORPUS_CHECK = "research/layer1_reproduction/verify_corpus.py"
 
 
-def sh(cmd, dry, check=True):
-    print(f"  $ {cmd}", flush=True)
+def sh(argv, dry, check=True):
+    """Run one command as an ARGUMENT LIST, never through a shell.
+
+    The first version built shell strings and quoted them with shlex.quote,
+    under subprocess(shell=True). That is broken on the one host this harness
+    exists for. `shell=True` on Windows runs cmd.exe, which does not treat
+    single quotes as quoting at all, so:
+
+      -v 'C:\\...\\repo':/repo   ->  docker splits on the colon in C: and dies
+                                     with `invalid mode: /repo`
+      bash -lc 'apt-get ...'     ->  bash receives the literal `'apt-get` alone
+
+    The whole premise of this study is that the dev host is Windows and Docker
+    is the only Linux available (README, "Why a container"), so a harness that
+    only assembles commands correctly under a POSIX shell cannot run anywhere
+    it is needed. Argument lists remove the quoting layer entirely rather than
+    making it conditional on the platform.
+    """
+    print("  $ " + " ".join(shlex.quote(x) for x in argv), flush=True)
     if dry:
         return 0
-    return subprocess.run(cmd, shell=True, check=check).returncode
+    return subprocess.run(argv, check=check).returncode
 
 
-def indocker(inner, dry, check=True):
-    """Run one shell command inside the container, at the repo root."""
-    return sh(f"docker exec -w /repo {CONTAINER} bash -lc {shlex.quote(inner)}",
+def indocker(inner, dry, check=True, cwd=WORK):
+    """Run one shell command inside the container.
+
+    `inner` is a bash command line and stays a single string -- it is bash
+    inside the container that parses it, so its quoting is POSIX by definition
+    and correct. Only the OUTER docker invocation is a list.
+
+    `cwd` defaults to WORK, the container's OWN filesystem, not the /repo bind
+    mount. See Amendment 1 in SPEC.md: the mount is 7.9x slower for bulk writes,
+    4.9x slower for metadata operations, and -- decisively -- does not give
+    rename the atomicity the substrate assumes.
+    """
+    return sh(["docker", "exec", "-w", cwd, CONTAINER, "bash", "-lc", inner],
               dry, check)
+
+
+def mount_source():
+    """The host path in the form Docker's -v flag accepts.
+
+    Docker Desktop takes `C:/Users/...`; backslashes are what get mangled once
+    the value passes through any shell, so they are normalised away here rather
+    than quoted around.
+    """
+    return ROOT.replace("\\", "/")
 
 
 def ensure_container(dry):
     r = subprocess.run(
-        f"docker ps -a --filter name=^{CONTAINER}$ --format {{{{.Names}}}}",
-        shell=True, capture_output=True, text=True)
+        ["docker", "ps", "-a", "--filter", f"name=^{CONTAINER}$",
+         "--format", "{{.Names}}"],
+        capture_output=True, text=True)
     if CONTAINER in (r.stdout or ""):
         print(f"  container {CONTAINER} exists; starting if stopped")
-        sh(f"docker start {CONTAINER}", dry, check=False)
+        sh(["docker", "start", CONTAINER], dry, check=False)
         return
     # --network host is deliberate: the harness binds many local ports and the
-    # corpus download needs egress.
-    sh(f"docker run -d --name {CONTAINER} --network host -v "
-       f"{shlex.quote(ROOT)}:/repo -w /repo {IMAGE} sleep infinity", dry)
+    # corpus download needs egress. Docker Desktop may ignore it, which is
+    # harmless here -- every port bound is reached from inside the container.
+    sh(["docker", "run", "-d", "--name", CONTAINER, "--network", "host",
+        "-v", f"{mount_source()}:/repo", "-w", "/repo", IMAGE,
+        "sleep", "infinity"], dry)
 
 
 def stage_deps(dry):
     print("\n=== deps ===")
     ensure_container(dry)
     indocker("apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
-             f"apt-get install -y -qq {APT}", dry)
+             f"apt-get install -y -qq {APT} rsync", dry, cwd="/")
     # httplib is required by coordinator_main.cpp and server.cpp; pybind11 was
     # removed from .gitmodules, so this initialises exactly one submodule.
-    indocker("git config --global --add safe.directory /repo && "
-             "git submodule update --init --recursive", dry)
+    # Done on the MOUNT, because that is where .gitmodules and the git dir live.
+    indocker(f"git config --global --add safe.directory {MOUNT} && "
+             "git submodule update --init --recursive", dry, cwd=MOUNT)
+    sync_to_work(dry)
+
+
+def sync_to_work(dry):
+    """Copy the repo off the bind mount onto the container's own filesystem.
+
+    Amendment 1. The experiment must not run on the mount: it is 7.9x slower for
+    bulk writes and 4.9x slower for metadata operations, and `save_cluster_config`
+    is not atomic there with respect to concurrent readers -- ClusterConfigRace
+    fails 10/10 on the mount and passes 5/5 off it, with ~90,000 concurrent reads
+    per run instead of 920.
+
+    Excludes `build/`: an incremental tree configured with /repo paths would be
+    reconfigured rather than reused, and CMake caches absolute paths.
+    """
+    print(f"  syncing {MOUNT} -> {WORK} (off the bind mount)")
+    indocker(f"mkdir -p {WORK} && rsync -a --delete "
+             f"--exclude build/ --exclude .fsbench/ "
+             f"--exclude research/layer1_reproduction/results_sweep/ "
+             f"{MOUNT}/ {WORK}/", dry, cwd="/")
+
+
+def done_in_work(dest):
+    """Has this sweep cell already produced output inside WORK?"""
+    r = subprocess.run(
+        ["docker", "exec", CONTAINER, "test", "-f",
+         f"{WORK}/{dest}/samples.csv"], capture_output=True)
+    return r.returncode == 0
+
+
+def sync_results_back(dry):
+    """Copy the sweep's output back onto the mount, where git can see it.
+
+    Only results travel back. Everything else in WORK is reproducible from the
+    mount, and copying build artifacts back would put them on the slow
+    filesystem for no reason.
+    """
+    print(f"  syncing results {WORK} -> {MOUNT}")
+    indocker(f"mkdir -p {MOUNT}/{DEST_SWEEP} && "
+             f"if [ -d {WORK}/{DEST_SWEEP} ]; then "
+             f"rsync -a {WORK}/{DEST_SWEEP}/ {MOUNT}/{DEST_SWEEP}/; "
+             f"else echo 'no results to sync'; fi", dry, cwd="/")
 
 
 def stage_build(dry):
@@ -127,7 +217,10 @@ def stage_sweep(dry):
         for cond, flag, dur in (("baseline", "--no-chaos", 180),
                                 ("chaos", "", 300)):
             dest = f"{DEST_SWEEP}/seed{seed}_{cond}"
-            if os.path.isdir(os.path.join(ROOT, dest)) and not dry:
+            # Resumability check moved into the container: since Amendment 1 the
+            # runs land in WORK, so testing the host path would never skip and
+            # every resume would redo the whole sweep.
+            if not dry and done_in_work(dest):
                 print(f"  skip {dest} (exists)")
                 continue
             indocker(f"rm -rf {SRC_RESULTS}", dry, check=False)
@@ -143,6 +236,9 @@ def stage_sweep(dry):
                      f"mv {SRC_RESULTS} {dest}; else "
                      f"echo NO_OUTPUT_seed{seed}_{cond}_run_failed; fi",
                      dry, check=False)
+            # After each cell, not only at the end: a sweep interrupted at cell 7
+            # should not lose the six runs before it.
+            sync_results_back(dry)
 
 
 def stage_analyse(dry):
@@ -150,6 +246,7 @@ def stage_analyse(dry):
     indocker(f"python3 research/replica_recall/aggregate.py "
              f"--sweep-dir {DEST_SWEEP} "
              f"| tee {DEST_SWEEP}/aggregate_output.txt", dry, check=False)
+    sync_results_back(dry)
 
 
 STAGES = {
