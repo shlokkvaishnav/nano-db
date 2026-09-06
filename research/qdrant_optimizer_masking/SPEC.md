@@ -2,7 +2,7 @@
 
 **Branch:** `experiment/qdrant-optimizer-masking-index-recall`
 **Date opened:** 2026-08-24
-**Status:** DRAFT — no implementation or results yet. This file is committed before either exists.
+**Status:** COMPLETE — closed: not optimizer masking. The corpus was un-indexed for most or all of the measurement window, so `index_recall` was not measuring a graph. *Header corrected 2026-09-06: this said DRAFT while carrying Results, Interpretation and a Decision. Note that the hypothesis text below still frames "Qdrant showed no index_recall divergence" as live; that framing was withdrawn 2026-09-04 and this study is why.*
 
 Issue: closes #8. Body copied verbatim below (per `research/AGENT_PIPELINE.md`'s implementer instructions — this is the issue text unmodified, not a paraphrase).
 

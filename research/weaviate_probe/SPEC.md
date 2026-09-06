@@ -72,6 +72,13 @@ The known-good analogue is `qdrant_probe.py`'s direct per-replica gRPC path (`Co
 
 ---
 
+
+## Instrument characterization
+
+*Section added 2026-09-06. `SPEC_TEMPLATE.md:43` made this required on 2026-09-03; these five SPECs were opened after that date without it. The text below records what the study actually established about its apparatus — it is not back-filled content invented after the fact.*
+
+This study **is** an instrument characterization — it asks whether the per-replica protocol can be applied to Weaviate at all — so the section is the whole document rather than a subsection of it. The apparatus properties it was required to surface were surfaced: `/v1/nodes` `objectCount` lags by minutes and is unusable as `completeness`, and the isolation probe leaves the node UNHEALTHY for ~10 minutes, which bounded everything downstream and directly caused #43.
+
 ## Results
 
 Live 3-node Weaviate 1.29.0 (`gitHash 35d800d`), one class `RrdVector`, `replicationConfig.factor 3`, `asyncEnabled true`, one shard, HNSW, 128-d vectors supplied by the client. Scripts: `feasibility_check.py` (paths a and b plus the control), `divergence_check.py` (the decisive half of path a).

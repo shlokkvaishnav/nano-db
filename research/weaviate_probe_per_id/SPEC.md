@@ -55,7 +55,7 @@ The coarse size-based probe from #43 is the baseline and the cross-check — it 
 
 ### Interpretation plan
 
-(a) → the Weaviate experiment's `completeness` arm is ready; the remaining prerequisite is sampling faster than the ~0.3s repair observed in #43. (b)/(c) → the experiment can still run with the coarse probe, but its `completeness` claim is bounded to "how many of the requested ids" rather than "which", and the README wording for the eventual Weaviate result inherits that bound. In no case does an undecoded payload get used as though it were per-id data.
+(a) → the Weaviate experiment's `completeness` arm is ready; the remaining prerequisite is sampling faster than the ~0.3s repair observed in #43. **Corrected 2026-09-06 (#48, PR #51):** withdrawn. "~0.3 s" is one draw from a wide, timing-determined distribution — the same 50-object divergence gives 44.7 s, 0.008 s, 0.010 s — so it is not a bound and sub-second sampling was never a prerequisite. 1–5 s cadence over a ≥60 s observation is sufficient. The follow-on named here was cancelled by #48's decision. (b)/(c) → the experiment can still run with the coarse probe, but its `completeness` claim is bounded to "how many of the requested ids" rather than "which", and the README wording for the eventual Weaviate result inherits that bound. In no case does an undecoded payload get used as though it were per-id data.
 
 ### Confounds considered
 
@@ -68,6 +68,13 @@ The coarse size-based probe from #43 is the baseline and the cross-check — it 
 
 
 ---
+
+
+## Instrument characterization
+
+*Section added 2026-09-06. `SPEC_TEMPLATE.md:43` made this required on 2026-09-03; these five SPECs were opened after that date without it. The text below records what the study actually established about its apparatus — it is not back-filled content invented after the fact.*
+
+This study **is** an instrument characterization — it exists solely to make the #43 probe trustworthy before a published number depends on it. Properties surfaced: ids are 16 bytes big-endian in the payload (so presence is a set, not a byte count), 0 false positives on never-written ids, and the silent-topology hazard where `create_class` tolerated 422 and ran against a 3-shard, factor-1 class. The image is digest-pinned because the decoder depends on one build.
 
 ## Results
 
@@ -107,7 +114,7 @@ Fixed: `create_class` now verifies on 422 via a new `verify_class()` (factor == 
 
 ## Interpretation
 
-Outcome (a): `completeness` is now computable per id on Weaviate, from a replica read that touches no peer. Combined with #43, the Weaviate experiment's data-axis arm is ready — the remaining prerequisite is sampling faster than the ~0.3s repair #43 measured.
+Outcome (a): `completeness` is now computable per id on Weaviate, from a replica read that touches no peer. Combined with #43, the Weaviate experiment's data-axis arm is ready — the remaining prerequisite is sampling faster than the ~0.3s repair #43 measured. **Corrected 2026-09-06 (#48, PR #51):** withdrawn. "~0.3 s" is one draw from a wide, timing-determined distribution — the same 50-object divergence gives 44.7 s, 0.008 s, 0.010 s — so it is not a bound and sub-second sampling was never a prerequisite. 1–5 s cadence over a ≥60 s observation is sufficient. The follow-on named here was cancelled by #48's decision.
 
 **What this does not establish.** That the 16-byte id offset is stable across versions — it is an artifact of one build, which is exactly why the digest pin landed in the same branch. That the scan cannot false-positive on an id that happens to appear inside another object's vector bytes: improbable at 16 bytes and unproven; the never-written-ids check bounds it empirically at 0 false positives over 10 ids, not analytically. That the properties JSON or class name can be relied on — only the id scan is used, deliberately.
 
@@ -117,4 +124,4 @@ The 422 finding generalizes past Weaviate: **an idempotent-looking setup call th
 
 **MERGE.** Both prerequisites from PR #44's Decision section are closed, the per-id decoder is validated against a constructed answer including the failure mode that would make it worthless, and a real topology hazard found on the way is fixed rather than noted.
 
-**Follow-on:** sub-second sampling for the Weaviate probe (already named in #44), now the only remaining prerequisite before the dissociation experiment.
+**Follow-on:** sub-second sampling for the Weaviate probe (already named in #44), now the only remaining prerequisite before the dissociation experiment. **Corrected 2026-09-06 (#48, PR #51):** withdrawn. "~0.3 s" is one draw from a wide, timing-determined distribution — the same 50-object divergence gives 44.7 s, 0.008 s, 0.010 s — so it is not a bound and sub-second sampling was never a prerequisite. 1–5 s cadence over a ≥60 s observation is sufficient. The follow-on named here was cancelled by #48's decision.

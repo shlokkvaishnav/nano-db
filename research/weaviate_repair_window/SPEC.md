@@ -70,6 +70,13 @@ Primary: **samples per repair window** = (time to convergence) ÷ (achievable pr
 
 ---
 
+
+## Instrument characterization
+
+*Section added 2026-09-06. `SPEC_TEMPLATE.md:43` made this required on 2026-09-03; these five SPECs were opened after that date without it. The text below records what the study actually established about its apparatus — it is not back-filled content invented after the fact.*
+
+This study **is** an instrument characterization, and was opened for exactly the reason `SPEC_TEMPLATE.md` requires one: PR #44's single ~0.3 s observation had become a design constraint. Properties surfaced: the probe-cost floor by id-set size; repair duration independent of divergence size across 50→5,000; the base64-in-URL bound (works at 15,000 ids, fails silently at 20,000); and — via steps 2b and 2c — that repair latency is timing-determined, which cancelled the sub-second sampling work entirely.
+
 ## Results
 
 Digest-pinned Weaviate 1.29.0, 3 nodes, factor 3, 1 shard (verified via `verify_class`). Script: `characterize.py`; raw records in `results/`.

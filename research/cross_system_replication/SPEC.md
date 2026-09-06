@@ -1,7 +1,7 @@
 # Spec: research/cross-system-replication
 
 **Branch:** `research/cross-system-replication`
-**Status:** DRAFT — no implementation or results yet. This file is committed before either exists.
+**Status:** COMPLETE — answered on both axes, with two later corrections recorded inline (2026-09-02 graph-axis withdrawal, 2026-09-04 healing addendum). *Header corrected 2026-09-06: this said DRAFT while carrying Results, Interpretation and a Decision.*
 
 ## Research question
 
