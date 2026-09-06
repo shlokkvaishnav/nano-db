@@ -15,7 +15,7 @@ Weaviate runs an undocumented **cluster-internal HTTP API** on `CLUSTER_DATA_BIN
 
 **Proven local, not a coordinator in disguise** — the confound the spec called non-optional — two ways: it refuses when the node is down, and it returned **0 bytes while its peers returned 31,190** for the same ids, with all three nodes running.
 
-**The finding that will shape the experiment:** async repair converged in **~0.3s**. An earlier attempt here polled every 2s, saw all replicas equal, and concluded "no divergence visible" — wrong, and wrong for the same reason #24 was void: sampling slower than the signal. Any Weaviate healing measurement must beat 0.3s.
+**The finding that will shape the experiment:** async repair converged in **~0.3s**. An earlier attempt here polled every 2s, saw all replicas equal, and concluded "no divergence visible" — wrong, and wrong for the same reason #24 was void: sampling slower than the signal. Any Weaviate healing measurement must beat 0.3s. **Corrected 2026-09-06 (#48, PR #51):** the sentence above is withdrawn. "~0.3 s" is one draw from a bimodal distribution, not a bound — repeating the same 50-object divergence gives 44.7 s, 0.008 s, 0.010 s, and across 18 runs every observation is either sub-0.2 s or 36–50 s with nothing in between. Sampling need only beat the **slow** path, so 1–5 s cadence is sufficient and sub-second sampling is not required. A fast-path run has no observable window at any cadence, which is a property of the repair, not of the probe.
 
 Consequence: the Weaviate experiment is **asymmetric** — a `completeness` time series through the chaos window via this probe, and a snapshot `index_recall` via #41's. Full detail, the control, and what is not established: [`SPEC.md`](SPEC.md).
 
