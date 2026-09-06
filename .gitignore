@@ -28,7 +28,8 @@ research/replica_recall/forensics_results.json
 research/cross_system_replication/results/samples.csv
 research/cross_system_replication/results/events.json
 research/cross_system_replication/results/run_meta.json
-research/cross_system_replication/results/telemetry.csvresearch/qdrant_gated_index_recall/*.log
+research/cross_system_replication/results/telemetry.csv
+research/qdrant_gated_index_recall/*.log
 research/qdrant_index_recall_healing/*.log
 research/qdrant_index_recall_healing/*.err
 research/qdrant_index_recall_healing/*.pid
@@ -36,3 +37,4 @@ research/qdrant_chaos_loop_timeout/*.log
 research/qdrant_chaos_loop_timeout/*.err
 research/weaviate_probe/weaviate_run/
 research/weaviate_probe/*.log
+research/weaviate_repair_window/*.log
