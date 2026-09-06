@@ -29,6 +29,27 @@ The corpus comes from a seeded RNG, so the exact top-k over *the subset a replic
 
 **The base and divergence id sets must be disjoint.** Re-writing the same ids while the victim is down leaves it missing only the *updates*, and a presence probe cannot see versions — so the victim would read as complete and the primary metric would report a false negative. Verified disjoint.
 
+## The graph axis was dead, and nothing would have said so (Amendment 2)
+
+The first attempt at the sweep was **stopped 12 minutes in and its data discarded.** Its very first number was impossible: the no-chaos control — an undisturbed replica, nothing killed — reported `index_recall = 0.23`. A healthy replica scored against exact search over its own data must sit near 1.0. That is an instrument returning noise, not a fact about Weaviate.
+
+Two defects, both fatal to the graph axis:
+
+- **Ground truth used the wrong metric.** `exact_topk()` ranked by L2 while the class indexes with `distance: cosine`. `index_recall` was comparing Weaviate's cosine-nearest-10 against exact L2-nearest-10 — two different neighbour sets. It now reads the metric from the live schema and refuses to run on one it cannot reproduce.
+- **The class was shared scratch that had never been cleared.** `RrdVector` is written by #41, #43, #46, #48 and #56, and held **14,200 objects** against a per-run corpus of 5,000. The ANN drew its nearest ten from the superset while ground truth drew from the subset. The class is now deleted and recreated per run.
+
+Verified on the live cluster before restarting:
+
+| condition | `index_recall`, healthy replica |
+|---|---|
+| as written (14,200-object class, L2 truth) | **0.23** |
+| class reset, still L2 truth | 0.32 |
+| class reset + cosine truth | **0.9750** |
+
+**The third defect is the one worth carrying elsewhere: there was no positive control.** The spec required a no-divergence control and got one — for `completeness`. Nothing required the *graph* axis to be shown reading ~1.0 when nothing is wrong. So every pre-flight check passed on the axis that already worked, while the axis carrying the hypothesis measured nothing.
+
+That matters more than usual here, because the claim under test is a **dissociation** — one axis moving while the other does not. A silently dead `index_recall` would have produced exactly that result for free, and it would have confirmed the pre-registered hypothesis. The harness now aborts if the no-chaos control scores below 0.90.
+
 ## The window parameter — unblocked by #56 (Amendment 1, 2026-09-06)
 
 It was blocked: the window has to be timed from the right origin, and whether Weaviate's repair clock is anchored to the write or the restart was exactly what #56 was measuring. It has reported, and the answer is **neither, cleanly** — within a regime the clock runs from the **restart**, and divergence *age* selects which regime you are in (below ~15 s the victim waits ~32 s; above ~30 s it reconciles in ~2 s).

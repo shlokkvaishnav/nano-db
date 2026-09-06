@@ -103,18 +103,52 @@ def corpus(seed, n, offset=0):
     return ids, vecs
 
 
-def exact_topk(query, vecs, held_idx, k):
+def schema_distance(node=0):
+    """The distance metric the class's HNSW index actually uses.
+
+    Read from the live schema rather than hardcoded. Amendment 2: the first
+    version computed ground truth with L2 while the class indexes with COSINE,
+    so `index_recall` scored Weaviate's cosine-nearest-10 against exact
+    L2-nearest-10 -- a comparison between two different neighbour sets, which
+    has nothing to do with graph quality. Reading it from the artifact is the
+    same fix #17's review applied to the kill scheduler's mirrored constant:
+    a value that can silently disagree with reality should be derived, not
+    duplicated.
+    """
+    st, sch = t.http_request(t.http_port(node), "GET", f"/v1/schema/{t.CLASS_NAME}",
+                             None, timeout=15)
+    if st != 200 or not isinstance(sch, dict):
+        return None
+    return ((sch.get("vectorIndexConfig") or {}).get("distance") or "").lower()
+
+
+def exact_topk(query, vecs, held_idx, k, distance="cosine"):
     """Exact top-k over ONLY the vectors this replica holds -- the 'data held
-    constant' half of index_recall's definition."""
+    constant' half of index_recall's definition.
+
+    `distance` MUST match the index's own metric or this is not a recall
+    measurement at all (Amendment 2).
+    """
     if len(held_idx) == 0:
         return []
     sub = vecs[held_idx]
-    d = np.linalg.norm(sub - query, axis=1)
+    if distance == "cosine":
+        sn = sub / np.linalg.norm(sub, axis=1, keepdims=True)
+        qn = query / np.linalg.norm(query)
+        d = 1.0 - sn @ qn
+    elif distance in ("l2-squared", "l2", "euclidean"):
+        d = np.linalg.norm(sub - query, axis=1)
+    elif distance == "dot":
+        d = -(sub @ query)
+    else:
+        raise ValueError(f"unsupported index distance {distance!r}; refusing to "
+                         "score index_recall against a metric the index does "
+                         "not use")
     order = np.argsort(d)[:k]
     return [held_idx[i] for i in order]
 
 
-def index_recall_snapshot(node, shard, ids, vecs, queries, dry):
+def index_recall_snapshot(node, shard, ids, vecs, queries, dry, distance="cosine"):
     """Isolate `node`, ask it k-NN for each query at consistency ONE, compare
     against exact search over the ids it actually holds, restore peers.
 
@@ -136,14 +170,15 @@ def index_recall_snapshot(node, shard, ids, vecs, queries, dry):
         hits = tot = 0
         for q in queries:
             okq, got = search_full_ids(node, q, K)
-            truth = set(ids[i] for i in exact_topk(q, vecs, held_idx, K))
+            truth = set(ids[i] for i in exact_topk(q, vecs, held_idx, K, distance))
             if not okq or not truth:
                 continue
             got_ids = {g for g in got if g}
             hits += len(got_ids & truth)
             tot += len(truth)
         return {"index_recall": (hits / tot) if tot else None,
-                "held": int(len(held_idx)), "queries": len(queries)}
+                "held": int(len(held_idx)), "queries": len(queries),
+                "distance": distance}
     finally:
         for p in PEERS:
             if p != node:
@@ -200,7 +235,59 @@ def recovery_with_censoring(series):
     return out
 
 
-def one_run(seed, chaos, shard, dry):
+def reset_class(dry):
+    """Delete and recreate the class, so it holds ONLY this run's corpus.
+
+    Amendment 2, and this is the defect that made the graph axis meaningless.
+    `RrdVector` is shared scratch: #41, #43, #46, #48 and #56 all wrote into it
+    and nothing ever cleared it. At the first attempted run it held **14,200
+    objects** while a run's own corpus is 5,000.
+
+    `index_recall` is the replica's ANN answer scored against exact search over
+    *the ids this run wrote*. If the index also contains 9,200 objects from
+    older studies, Weaviate's nearest ten are drawn from the superset while the
+    ground truth is drawn from the subset, and the two sets disagree for reasons
+    that have nothing to do with graph quality. Measured on the polluted class,
+    a healthy untouched replica scored **0.23**.
+
+    Recreating is safe: the class is scratch infrastructure. Every study that
+    wrote into it has its own committed `results/`, so nothing whose evidence
+    matters lives here.
+    """
+    if dry:
+        log("  [dry] delete + recreate class (corpus isolation)")
+        return True
+    t.http_request(t.http_port(0), "DELETE", f"/v1/schema/{t.CLASS_NAME}",
+                   None, timeout=60)
+    time.sleep(3)
+    st, resp = t.create_class(0)
+    if st != 200:
+        log(f"  FAILED to recreate class: {st} {resp}")
+        return False
+    time.sleep(3)
+    okc, info = t.verify_class(0)
+    log(f"  class reset; topology {okc} {info}")
+    return okc
+
+
+def class_count(node=0):
+    """How many objects the class holds, cluster-wide."""
+    q = {"query": "{ Aggregate { %s { meta { count } } } }" % t.CLASS_NAME}
+    st, body = t.http_request(t.http_port(node), "POST", "/v1/graphql", q, timeout=30)
+    try:
+        return (body["data"]["Aggregate"][t.CLASS_NAME][0]["meta"]["count"])
+    except Exception:
+        return None
+
+
+# The graph axis has to be shown to read ~1 when nothing is wrong, or a low
+# number under chaos means nothing. Amendment 2: the spec required a
+# no-divergence control for COMPLETENESS and nothing equivalent for
+# index_recall, which is why two fatal instrument defects survived into a run.
+BASELINE_INDEX_RECALL_FLOOR = 0.90
+
+
+def one_run(seed, chaos, shard, dry, distance="cosine"):
     """One seed, one condition.
 
     Two disjoint id sets, and the distinction is load-bearing:
@@ -218,9 +305,15 @@ def one_run(seed, chaos, shard, dry):
     div_ids, _ = corpus(seed, DIVERGENCE, offset=DIVERGENCE)
     rng = np.random.default_rng(seed + 1)
     queries = rng.standard_normal((20, t.VECTOR_DIM)).astype(np.float32)
-    rec = {"seed": seed, "chaos": chaos, "divergence": DIVERGENCE}
+    rec = {"seed": seed, "chaos": chaos, "divergence": DIVERGENCE,
+           "distance": distance}
 
     log("")
+    # Amendment 2: the class is shared scratch and was never cleared, so the
+    # ANN searched a superset of the ground-truth corpus. Reset per run.
+    if not reset_class(dry):
+        rec["aborted"] = "class reset failed"
+        return rec
     log(f"--- seed {seed} chaos={chaos} ---")
     log(f"  writing BASE corpus ({DIVERGENCE} ids) at consistency ALL")
     if not dry:
@@ -228,7 +321,21 @@ def one_run(seed, chaos, shard, dry):
 
     log("  index_recall snapshot BEFORE (isolation probe, ~10 min node health)")
     rec["index_recall_before"] = index_recall_snapshot(
-        VICTIM, shard, base_ids, base_vecs, queries, dry)
+        VICTIM, shard, base_ids, base_vecs, queries, dry, distance)
+    if not dry:
+        rec["class_count_after_base_write"] = class_count()
+    # THE POSITIVE CONTROL the spec never had. If a healthy, untouched replica
+    # does not score near 1.0, the graph axis is not measuring graph quality and
+    # nothing downstream of it means anything (Amendment 2).
+    b = (rec["index_recall_before"] or {}).get("index_recall")
+    if not dry and b is not None and b < BASELINE_INDEX_RECALL_FLOOR:
+        log(f"  ABORT: baseline index_recall {b:.3f} < "
+            f"{BASELINE_INDEX_RECALL_FLOOR} on an undisturbed replica. The "
+            f"instrument is broken, not the cluster. Class holds "
+            f"{rec.get('class_count_after_base_write')} objects against a "
+            f"{DIVERGENCE}-object corpus; distance={distance}.")
+        rec["aborted"] = "baseline index_recall below floor"
+        return rec
 
     if chaos:
         log(f"  divergence: stop victim, write {DIVERGENCE} NEW ids it cannot see")
@@ -276,7 +383,7 @@ def one_run(seed, chaos, shard, dry):
 
     log("  index_recall snapshot AFTER")
     rec["index_recall_after"] = index_recall_snapshot(
-        VICTIM, shard, base_ids, base_vecs, queries, dry)
+        VICTIM, shard, base_ids, base_vecs, queries, dry, distance)
     return rec
 
 
@@ -300,6 +407,17 @@ def main() -> int:
                 "topology with no replicas.")
             return 2
 
+    distance = "cosine"
+    if not a.dry_run:
+        distance = schema_distance(0) or ""
+        log(f"index distance metric (read from the live schema): {distance!r}")
+        if not distance:
+            log("REFUSING TO RUN: could not read the class's distance metric. "
+                "Ground truth computed under the wrong metric is not a recall "
+                "measurement (Amendment 2).")
+            return 2
+        log(f"class holds {class_count()} objects before reset")
+
     shard = ia.shard_name(0) if not a.dry_run else "DRYSHARD"
     log(f"shard: {shard}   divergence: {DIVERGENCE}   cadence: {CADENCE_S}s   "
         f"observe: {OBSERVE_S}s")
@@ -307,7 +425,7 @@ def main() -> int:
     rows = []
     for seed in seeds:
         for chaos in (False, True):        # the no-chaos control is REQUIRED
-            rows.append(one_run(seed, chaos, shard, a.dry_run))
+            rows.append(one_run(seed, chaos, shard, a.dry_run, distance))
             with open(os.path.join(a.out, "dissociation.json"), "w") as f:
                 json.dump(rows, f, indent=1)
     log(f"\nwrote {os.path.join(a.out, 'dissociation.json')}")

@@ -198,6 +198,110 @@ reaches this experiment it will appear as a mixture across seeds, which n = 5
 cannot resolve. Both are stated here so a mixed result is not later reframed as
 a surprise.
 
+## Amendment 2 (2026-09-06, after a discarded partial run): the graph axis was not measuring graph quality
+
+The first attempt at the sweep was **stopped 12 minutes in and its data
+discarded**, because the very first number it produced was impossible.
+
+**What was seen.** The no-chaos control for seed 20260900 — an undisturbed,
+healthy replica, nothing killed, nothing diverged — reported
+`index_recall = 0.23`, identical before and after. A healthy replica scored
+against exact search over its own data must sit near 1.0; that is what
+"the graph is intact" means. 0.23 is not a finding about Weaviate, it is an
+instrument returning noise.
+
+**Why this is not an outcome-dependent amendment.** What was read was a
+*control*, not a comparison: no chaos condition had completed, and nothing about
+`completeness`, the dissociation, or the difference between conditions was
+observed. The amendment changes how the instrument computes a number, on
+evidence that the number was invalid on its own terms — a healthy replica cannot
+score 0.23 — not on evidence about which way the result came out. The run's
+partial output is discarded rather than kept, so nothing measured under the
+broken instrument reaches the analysis.
+
+### Defect 1 — ground truth used the wrong distance metric
+
+`exact_topk()` ranked neighbours by **L2** (`np.linalg.norm(sub - query)`) while
+the class's HNSW index is configured with **`distance: cosine`**, read from the
+live schema:
+
+```
+vectorIndexType : hnsw
+distance        : cosine
+```
+
+So `index_recall` compared Weaviate's cosine-nearest-10 against exact
+L2-nearest-10 — two different neighbour sets. The metric was never a measure of
+graph quality; it measured how often the cosine and L2 orderings happen to
+agree on random-normal vectors.
+
+Fixed by reading `distance` from the live schema and computing ground truth with
+it, refusing to run on a metric it cannot reproduce. Derived from the artifact
+rather than duplicated, which is the fix #17's review applied to the kill
+scheduler's mirrored `FIXED_DOWN_S`: a constant that can silently disagree with
+reality is a defect even when it is currently correct.
+
+### Defect 2 — the class was shared scratch and had never been cleared
+
+The decisive one. `RrdVector` is written by **every** Weaviate study — #41, #43,
+#46, #48, #56 — and nothing has ever emptied it. At the start of the run it held:
+
+```
+count: 14,200        against a per-run corpus of 5,000
+```
+
+`index_recall` scores the replica's ANN answer against exact search over *the
+ids this run wrote*. With 9,200 objects from older studies also in the index,
+Weaviate's nearest ten are drawn from the superset while the ground truth is
+drawn from the subset. The two disagree for reasons that have nothing to do with
+the graph, and the disagreement grows with every study that ever ran.
+
+Fixed by deleting and recreating the class at the start of **each run**, so it
+holds exactly that run's corpus. Recreating is safe: the class is scratch
+infrastructure and every study that wrote into it has its own committed
+`results/`, so no evidence lives there.
+
+### The fixes, verified against the live cluster before restarting
+
+| condition | `index_recall`, healthy undisturbed replica |
+|---|---|
+| as originally written (14,200-object class, L2 truth) | **0.23** |
+| class reset to 5,000, still L2 truth | 0.32 |
+| class reset to 5,000, cosine truth — **both fixes** | **0.9750** |
+
+Both fixes are necessary; neither alone is sufficient. 0.9750 is what an intact
+HNSW graph is supposed to look like, and it is now the baseline against which
+any chaos-induced drop is measured.
+
+### Defect 3, the one that let the other two through — there was no positive control
+
+This is the part worth carrying to other specs.
+
+The Baselines/controls section required a **no-divergence control** — and got
+one, for `completeness`: "the victim is complete on its first answer." Nothing
+anywhere required the **graph** axis to be shown reading ~1.0 when nothing is
+wrong. The Instrument characterization section characterizes the completeness
+probe in detail (cadence, locality, per-id decoding, the 15,000-id bound) and
+inherits `index_recall` from #41 without ever asking what it returns on a
+healthy replica.
+
+So the spec could pass its own pre-flight checks — topology verified, probe
+proven local, ids decoded per-id — with the graph axis measuring nothing at all.
+Every check was on the axis that was already working.
+
+The harness now asserts `index_recall >= 0.90` on the no-chaos control and
+**aborts the run** if it fails, naming the class count and the distance metric
+in the message, so the same failure can never again be discovered by reading a
+result. A measurement axis with no positive control is an axis that cannot fail
+visibly, and this experiment's central claim is a *dissociation* — one axis
+moving while the other does not — which a silently dead axis would have produced
+for free.
+
+**This is why the run is worth its four hours only now.** Had it completed as
+written, it would have reported `index_recall` failing to heal — the
+pre-registered hypothesis — from an instrument that could not have shown healing
+under any circumstances.
+
 ## Results
 
 *(no runs yet)*
