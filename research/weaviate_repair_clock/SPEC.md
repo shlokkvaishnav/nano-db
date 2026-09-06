@@ -2,7 +2,7 @@
 
 **Branch:** `method/weaviate-repair-clock`
 **Date opened:** 2026-09-06
-**Status:** IN PROGRESS — pre-registered before any run
+**Status:** COMPLETE — outcome (d). The pre-registered statistic returned (a) and disaggregation reverses it.
 
 Issue: closes #56. Body copied verbatim below (per `research/AGENT_PIPELINE.md`'s implementer instructions — this is the issue text unmodified, not a paraphrase).
 
@@ -114,12 +114,66 @@ that overran is a valid observation at its realized offsets.
 
 ## Results
 
-*(to be filled after the runs)*
+53 runs. Analysis uses **realized** offsets per Amendment 1.
+
+### Step 1 — absence carries no information (consistency check, as pre-registered)
+
+Holding write-to-restart at ~6 s and varying the outage across 25 / 40 / 70 s: **absence spans 60 s while `repair_s` spans 1.35 s** (30.171–31.517). Both hypotheses predicted this, so it discriminates nothing — but it does rule out absence as a variable in its own right.
+
+### Step 1b — the discriminating step
+
+| realized age | n | `repair_s` median | `age + repair` median |
+|---|---|---|---|
+| 2 s | 6 | 31.81 | 33.81 |
+| 6 s | 6 | 32.29 | 38.29 |
+| 15 s | 5 | 31.20 | 46.20 |
+| 30 s | 6 | 1.95 | 31.95 |
+| 37–38 s | 6 | 1.95 | 39.95 |
+
+**The pre-registered statistic says outcome (a):** CV(`repair_s`) = 0.766 against CV(`age + repair`) = 0.132, so time-from-the-write is 5.8× steadier. Aggregate correlations agree — corr(age, repair) = **−0.942**, corr(age, since_write) = **−0.012**, exactly the write-anchored signature.
+
+**The statistic is not mechanically biased.** Simulating a pure restart-anchored system (constant `repair_s`) over these same realized ages returns "RESTART" at every constant tried (2 s, 15 s, 31 s), so the test can distinguish the hypotheses in principle.
+
+**And the conclusion is still wrong.** Disaggregating by regime reverses it:
+
+| regime | n | age span | `repair_s` spread | corr(age, repair) | corr(age, since_write) |
+|---|---|---|---|---|---|
+| young, age 2–15 s | 17 | 13 s | **2.34 s** | **−0.267** | **+0.993** |
+| old, age 30–38 s | 12 | 8 s | **1.45 s** | **−0.103** | **+0.991** |
+
+Within either regime, `repair_s` is **flat** across 13 s and 8 s of age variation, while `age + repair` tracks age almost perfectly. **That is the restart-anchored signature, not the write-anchored one** — the opposite of what the aggregate reported.
+
+This is Simpson's paradox. The aggregate correlation of −0.942 is produced entirely by the **step between the two regimes** (~32 s → ~2 s), not by any within-regime trend. Pooling across a step and reading the slope is exactly the error.
+
+### Step 2 — the short-outage bimodality is unexplained, and the perturbation check failed
+
+At a 6 s outage, n = 10: **0.011, 0.013, 0.018, 0.024, 0.026, 0.028** and **43.126, 43.733, 50.779, 53.331**. Still sharply bimodal, six fast and four slow, at identical parameters.
+
+Wall-clock phase was recorded for the first time (#48 never captured it). Correlations against candidate periods are all weak — 30 s: −0.101, 40 s: +0.429, 50 s: −0.399, 52 s: −0.466, 60 s: +0.556. At n = 10 none of these is meaningful. **Hypothesis (ii) is neither supported nor excluded.**
+
+**The probe-perturbation check is void, and the reason matters for #54.** The three slow-poll runs report `repair_s = 0.000` with `first = 50/50` — the victim already held everything on its *first* sample. That does not show the probe leaves repair alone; it shows the first sample landed *after* convergence. The check cannot distinguish perturbation from missing the window, so it answers nothing. **What it does establish is that a 1 s cadence can miss a fast repair entirely** — a direct constraint on #54, which planned exactly that cadence.
 
 ## Interpretation
 
-*(to be filled)*
+**Outcome (d): both quantities matter, in different ways, and neither pre-registered model is right.**
+
+- **Divergence age selects the *regime*.** Below ~15 s the victim waits ~32 s; above ~30 s it reconciles in ~2 s. The threshold is somewhere in between and was not sampled.
+- **Within a regime the clock is anchored to the *restart*.** `repair_s` is flat over 13 s of age variation; `age + repair` is not.
+- **Absence is irrelevant** once age is fixed (step 1).
+
+So the answer to "write or restart" is **neither, cleanly**: age acts as a *selector* between two behaviours rather than as an offset against a countdown, and within each behaviour the latency is measured from the restart.
+
+**The methodological finding is the more transferable one.** The pre-registered statistic was well chosen — it registers an estimand rather than a threshold, exactly as `SPEC_TEMPLATE.md` now requires after #48 step 2c — and it *still* gave the wrong answer, because it aggregated across a step. Registering the right kind of statistic does not protect against pooling heterogeneous regimes. The defence that worked was disaggregation, prompted by the reviewer step (`AGENT_PIPELINE.md` step 1c) that asks whether some other cut of the same data collapses or reverses the effect.
+
+**What is not established.** The mechanism — no Weaviate-internal scheduler was observed, only its effect on a probe. The threshold's location, sampled nowhere between 15 s and 30 s. Why a 6 s outage is bimodal. Whether the probe perturbs repair, which this design failed to test.
 
 ## Decision
 
-*(to be filled)*
+**MERGE**, as outcome (d), with the pre-registered statistic reported *and* overturned in the same section.
+
+**Consequences to file:**
+1. `experiment/*` (#54) — **time the observation window from the restart**, and make it long enough to contain the ~32 s regime plus margin; ≥60 s stands. Also: **a 1 s cadence can miss a fast repair entirely**, so #54 must record the first sample's offset and treat a `t=0` completion as censored rather than instant.
+2. `method/*` — locate the threshold between 15 s and 30 s, which this design bracketed but never sampled.
+3. `analysis/*` — `AGENT_PIPELINE.md` step 1c currently asks whether a derived quantity *collapses* an effect. It should also ask whether **disaggregation reverses** it, which is what worked here.
+
+**What must not be claimed.** That repair is write-anchored — the aggregate says so and the within-regime data contradicts it. That repair is restart-anchored *simpliciter* — true within a regime, false across the step. That the threshold is at any particular value; it is bracketed to (15 s, 30 s) and no finer.

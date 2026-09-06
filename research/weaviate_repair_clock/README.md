@@ -1,20 +1,53 @@
-# Is the repair clock anchored to the write, or the restart?
+# The repair clock: neither write nor restart, but a regime selector
 
-Issue #56 · branch `method/weaviate-repair-clock` · **runs in progress.**
+Issue #56 · branch `method/weaviate-repair-clock` · **53 runs. Outcome (d).**
 
-#48 measured Weaviate repair from the victim's restart. Under that origin two conditions differing only in divergence age separated 30× (p = 0.0022). Measured from the **write**, the same runs are 38.9 s and 36.9 s — about 5% apart. #51's review withdrew the causal reading on that basis, leaving the measurement standing and the mechanism open.
+## The headline, and the trap
 
-This decides it. Hold the outage at 40 s and vary where inside it the write lands:
+`repair_s` is timed from the victim's restart; `age + repair` from the write. #51's review showed the same 18 runs tell opposite stories depending on which you use, so this study varied where inside a fixed 40 s outage the write landed.
 
-| | prediction |
-|---|---|
-| anchored to the **write** | `age + repair` flat; `repair` falls as age rises |
-| anchored to the **restart** | `repair` flat; `age + repair` rises with age |
+**The pre-registered statistic said write-anchored.** CV(`repair_s`) = 0.766 against CV(`age + repair`) = 0.132 — 5.8× steadier — with aggregate corr(age, repair) = **−0.942** and corr(age, since_write) = **−0.012**. Textbook write-anchored signature.
 
-Opposite predictions on the same runs, so one dies.
+**Disaggregating by regime reverses it:**
 
-**It also decides something practical:** #54's observation window has to be timed from *something*. If the clock starts at the write, a window timed from the restart can close before repair fires — the failure that voided #24 and #9, arriving from a new direction.
+| regime | n | age span | `repair_s` spread | corr(age, repair) | corr(age, since_write) |
+|---|---|---|---|---|---|
+| young, 2–15 s | 17 | 13 s | **2.34 s** | **−0.267** | **+0.993** |
+| old, 30–38 s | 12 | 8 s | **1.45 s** | **−0.103** | **+0.991** |
 
-**No threshold is registered anywhere.** The statistic is the coefficient of variation of one continuous quantity against another. #48's step 2c pre-registered a binary fast/slow cut at 1 s, the gap justifying it was falsified by that same experiment, and the statistic went void — which is now a rule in `SPEC_TEMPLATE.md`.
+Within either regime `repair_s` is **flat** while `age + repair` tracks age almost perfectly — the **restart**-anchored signature. The aggregate −0.942 comes entirely from the step *between* regimes (~32 s → ~2 s), not from any trend inside one.
 
-Results and decision will land in [`SPEC.md`](SPEC.md).
+Simpson's paradox, in an experiment designed to settle a question about origins.
+
+## What the answer actually is
+
+- **Divergence age selects the regime.** Below ~15 s the victim waits ~32 s; above ~30 s it reconciles in ~2 s. The threshold sits between and was never sampled.
+- **Within a regime, the clock runs from the restart.**
+- **Absence is irrelevant** once age is fixed: across 25/40/70 s outages, `repair_s` spans 1.35 s.
+
+So: age is a **selector between two behaviours**, not an offset against a countdown.
+
+## The methodological finding is the more transferable one
+
+The statistic was well chosen. It registers an estimand rather than a threshold — exactly what `SPEC_TEMPLATE.md` now requires after #48 step 2c's fast/slow cut went void. And it was still wrong, because it pooled across a step.
+
+**Registering the right kind of statistic does not protect against aggregating heterogeneous regimes.** What caught it was disaggregation, prompted by the reviewer step (`AGENT_PIPELINE.md` 1c) that asks whether another cut of the same data collapses the effect. Here it *reversed* it, which the step doesn't currently mention — filed as a consequence.
+
+The statistic was also checked for mechanical bias before being overturned: simulating a pure restart-anchored system over these same realized ages returns "RESTART" at every constant tried, so the test can distinguish the hypotheses in principle. It was applied to the wrong population, not miscalibrated.
+
+## Two open items, and one failed check
+
+**The 6 s outage is still bimodal** — six runs at 0.011–0.028 s and four at 43.1–53.3 s, at identical parameters. Wall-clock phase was recorded for the first time (#48 never captured it); correlations against candidate periods are all weak at n = 10 (|r| ≤ 0.56). Neither supported nor excluded.
+
+**The probe-perturbation check is void**, and the reason matters for #54. The slow-poll runs report `repair_s = 0.000` with `first = 50/50` — the victim already held everything on its *first* sample. That shows the first sample landed after convergence, not that the probe is harmless. **It does establish that a 1 s cadence can miss a fast repair entirely** — a direct constraint on #54, which planned exactly that cadence.
+
+## Reproducing
+
+```bash
+python research/weaviate_repair_clock/repair_clock.py     # ~90 min, 53 runs
+python research/weaviate_repair_clock/analyze_clock.py    # reads committed JSON only
+```
+
+Analysis uses **realized** offsets, never requested labels (Amendment 1): several runs overran badly because `write_objects` at `consistency_level=ONE` occasionally takes minutes with a node down — itself an instrument property #54 needs.
+
+Full pre-registration, amendment, results and decision: [`SPEC.md`](SPEC.md).
