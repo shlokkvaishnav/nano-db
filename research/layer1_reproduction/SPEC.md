@@ -75,7 +75,7 @@ Outcome (a) or (b) updates `RESULTS.md`, the README's Raw data status section, a
 ## Amendment 1 (2026-09-06, before the sweep): the experiment runs off the bind mount
 
 Written after `deps`, `build` and `corpus` and **before any sweep run**, so no
-result influenced it. Three defects in the harness, all found by trying to run it.
+result influenced it. Four defects in the harness, all found by trying to run it.
 
 ### (a) The harness could not run on the only host it exists for
 
@@ -193,6 +193,37 @@ counts produced / skipped / failed cells, prints the tally, and exits non-zero i
 any cell produced no `samples.csv`. `deps` additionally asserts `import grpc,
 grpc_tools.protoc` immediately, so a missing binding fails at the start rather
 than ten cells later.
+
+### (d) A host memory kill destroyed a running cell, because the cell's life belonged to the client
+
+The first full sweep attempt was killed part-way through cell 1 — not by the
+container, but by the **host**: 7.7 GB of RAM with ~1.2 GB free. The kill landed
+on the harness process, and it took the experiment with it. All nine
+`nano_shard_node` / `nano_coordinator` processes died and the cell produced
+nothing.
+
+The cause is `docker exec` without `-d`: the exec'd process's lifetime is tied to
+the client that started it. So any interruption on the host — an OOM killer, a
+closed terminal, a dropped connection — costs whatever run was in flight. For a
+sweep of ten cells at 3.5–5.5 minutes each, that is a ~50-minute job that cannot
+survive a single bad minute on a machine already short of memory.
+
+Cells now run with `docker exec -d` and signal completion by writing a marker
+file as their own last step, which the harness polls. Detached, the run's
+lifetime belongs to the container; the marker's presence means the cell reached
+its end, which is the completion signal `-d` otherwise gives up by returning no
+exit status. Combined with the existing per-cell skip, an interrupted sweep now
+resumes at the cell it lost rather than at the beginning.
+
+Headroom was measured rather than assumed before restarting: during a run the
+container's memory climbs ~105 MB/min against ~2.4 GB available, so both the
+180 s and 300 s cells fit. The binding constraint was host RAM, not the VM.
+
+**This is a host limitation, and it belongs in the write-up.** The reproduction
+is running on a machine with 7.7 GB of RAM and a full disk, which is a further
+respect in which it is not the original host — alongside the container and the
+filesystem. It does not invalidate the runs; it does mean "a different machine is
+a different measurement" is now three specific differences, not a generic caveat.
 
 ### What this does not change, and what it costs
 

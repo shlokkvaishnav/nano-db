@@ -37,7 +37,7 @@ It verifies the header dimension, that the file size is a whole number of record
 
 ## The bind mount is part of the measurement too (Amendment 1)
 
-Three defects surfaced on the first real attempts to run this, all fixed before any sweep data existed.
+Four defects surfaced on the first real attempts to run this, all fixed before any sweep data existed.
 
 **The harness could not run on Windows** — the host it exists for. It built shell strings and quoted them with `shlex.quote()` under `subprocess.run(shell=True)`, but `shell=True` on Windows is `cmd.exe`, where single quotes are literal characters. Docker saw `-v 'C:\...':/repo`, split on the colon in `C:`, and died with `invalid mode: /repo`. Now every command is passed as an argument list.
 
@@ -49,7 +49,9 @@ So the gate failure was an instrument artifact — outcome (iii) does **not** ap
 
 The worse half is the exit code. Each cell tolerates its own failure so one bad cell doesn't cost the others — that's right — but the stage then reported success after ten consecutive failures, and the analyse stage would have run over an empty sweep. That is the silent-failure shape this README already cites (#26, #38, #46, #48) as the reason `verify_corpus.py` exists, reappearing one layer up. The sweep now counts produced/skipped/failed cells and exits non-zero if any produced no `samples.csv`, and `deps` asserts the imports up front.
 
-The repo is now `rsync`ed to `/work` inside the container and everything runs there; results sync back to the mount after each cell. **No protocol parameter changed** — only where the working directory points. The cost is honest and goes in the write-up: this puts the reproduction one step further from the original host, not closer.
+**Finally, a host memory kill destroyed a running cell.** The host has 7.7 GB of RAM with ~1.2 GB free; the OOM pressure killed the harness process, and because `docker exec` without `-d` ties the exec'd process's lifetime to its client, all nine cluster processes died with it. Cells now run detached and signal completion with a marker file, so a run's lifetime belongs to the container and an interrupted sweep resumes at the cell it lost. Headroom was measured before restarting: ~105 MB/min growth against ~2.4 GB available, so both cell durations fit.
+
+The repo is now `rsync`ed to `/work` inside the container and everything runs there; results sync back to the mount after each cell. **No protocol parameter changed** — only where the working directory points. The cost is honest and goes in the write-up: the container, the filesystem, and now the host's memory limits are three specific ways this is not the original machine — not a generic "different machine" caveat.
 
 ## Where the data will land
 

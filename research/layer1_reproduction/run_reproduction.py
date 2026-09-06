@@ -37,6 +37,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -184,6 +185,37 @@ def sync_to_work(dry):
              f"{MOUNT}/ {WORK}/", dry, cwd="/")
 
 
+def run_cell_detached(inner, marker, dry, poll_s=10, label=""):
+    """Run one sweep cell with `docker exec -d`, then poll for its marker.
+
+    Amendment 1(d). The first full sweep attempt was killed by the HOST -- 7.7 GB
+    of RAM with ~1.2 GB free -- and the kill took the container's processes with
+    it, because `docker exec` without -d ties the exec'd process's lifetime to
+    the client. A 5-9 minute cell losing its work whenever the host has a bad
+    minute is not a harness that can finish a 50-minute sweep.
+
+    Detached, the cell's lifetime belongs to the container. The marker file is
+    how completion is observed, since -d gives no exit status: the command writes
+    it as its own last step, so its presence means the cell ran to the end.
+    """
+    if dry:
+        print(f"  $ [detached] {inner}")
+        return
+    sh(["docker", "exec", "-d", CONTAINER, "bash", "-lc",
+        f"rm -f {marker}; {{ {inner} ; }} > {marker}.log 2>&1; touch {marker}"],
+       dry)
+    waited = 0
+    while True:
+        r = subprocess.run(["docker", "exec", CONTAINER, "test", "-f", marker],
+                           capture_output=True)
+        if r.returncode == 0:
+            break
+        time.sleep(poll_s)
+        waited += poll_s
+        if waited % 60 == 0:
+            print(f"    ... {label} running, {waited // 60} min", flush=True)
+
+
 def done_in_work(dest):
     """Has this sweep cell already produced output inside WORK?"""
     r = subprocess.run(
@@ -241,19 +273,21 @@ def stage_sweep(dry):
                 print(f"  skip {dest} (exists)")
                 skipped += 1
                 continue
-            indocker(f"rm -rf {SRC_RESULTS}", dry, check=False)
             cmd = (f"python3 research/replica_recall/run_experiment.py "
                    f"--seed {seed} --dist sift --duration {dur}")
             if flag:
                 cmd = f"{cmd} {flag}"
-            indocker(cmd, dry, check=False)
-            # Move rather than copy: leaving a populated results/ behind is how
-            # #18 and #24 committed a stale run by accident.
-            indocker(f"mkdir -p {DEST_SWEEP} && "
-                     f"if [ -f {SRC_RESULTS}/samples.csv ]; then "
-                     f"mv {SRC_RESULTS} {dest}; else "
-                     f"echo NO_OUTPUT_seed{seed}_{cond}_run_failed; fi",
-                     dry, check=False)
+            # One detached shell does the whole cell: clear, run, file the
+            # output. Move rather than copy -- leaving a populated results/
+            # behind is how #18 and #24 committed a stale run by accident.
+            run_cell_detached(
+                f"cd {WORK} && rm -rf {SRC_RESULTS} && {cmd}; "
+                f"mkdir -p {DEST_SWEEP}; "
+                f"if [ -f {SRC_RESULTS}/samples.csv ]; then "
+                f"mv {SRC_RESULTS} {dest}; else "
+                f"echo NO_OUTPUT_seed{seed}_{cond}_run_failed; fi",
+                f"/tmp/cell_{seed}_{cond}.done", dry,
+                label=f"seed{seed} {cond} ({dur}s)")
             if not dry:
                 if done_in_work(dest):
                     produced += 1
