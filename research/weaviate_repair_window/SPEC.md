@@ -99,7 +99,43 @@ Sampling floor: **~50 ms** for id sets up to 1,000.
 
 **A 100× increase in divergence (50 → 5,000) does not increase repair time.** Every observation is either **sub-0.2 s** or **38–50 s**; nothing lands in between. Control: with no divergence, the victim was already complete on its first answer, so these windows are repair and not restart latency.
 
-That distribution is the signature of a **fixed periodic sync**: the observed wait is time-until-the-next-tick, uniform-ish over an interval of roughly 40–50 s, and the sub-second cases are runs that happened to restart just before a tick. **Stated as consistent-with, not established** — Weaviate's sync scheduler was not observed directly, only its effect, and one alternative (catch-up completing inside node startup for small sets) is not fully excluded by these runs. At 5,000 the victim's first answer already held 13–140 objects, so streaming catch-up had begun before the probe could see it, which is why "duration" is only well defined once the divergence outlasts startup.
+That distribution points at a **timing-determined mechanism** rather than work proportional to divergence. Two candidate readings were then tested directly (see "Step 2b"), because the obvious one is wrong in a checkable way. **Stated as consistent-with, not established** — Weaviate's sync scheduler was not observed directly, only its effect. At 5,000 the victim's first answer already held 13–140 objects, so streaming catch-up had begun before the probe could see it, which is why "duration" is only well defined once the divergence outlasts startup.
+
+### Step 2b — order effect or timing? (added after review, prompted by the question "is it remembering something?")
+
+The back-to-back repetitions in step 2 confound two explanations, because each run's duration set the next run's timing:
+
+- **warming / "remembering"** — repair gets faster with repetition index, mediated by persistent state
+- **timing** — latency depends on *when* the restart lands relative to some periodic process, and index carries no information
+
+They were separated by repeating a fixed divergence (50 objects) **10 times with a randomized 0–50 s delay before each restart**, which scrambles timing while leaving index intact (`results/order_vs_phase.json`).
+
+| rep | pre-delay (s) | repair (s) |
+|---|---|---|
+| 0 | 6.7 | 0.018 |
+| 1 | 19.2 | 0.000 |
+| 2 | 44.3 | 36.908 |
+| 3 | 16.4 | 36.516 |
+| 4 | 4.3 | 0.008 |
+| 5 | 11.7 | 0.030 |
+| 6 | 7.7 | 0.008 |
+| 7 | 13.0 | 0.045 |
+| 8 | 29.2 | 48.207 |
+| 9 | 39.4 | 43.988 |
+
+**Warming is refuted.** correlation(repair, repetition index) = **+0.373** — warming predicts a strongly *negative* correlation — and the first run of the series was among the fastest (0.018 s). Slow runs fall at reps 2, 3, 8, 9, not at the start.
+
+**Timing is what differs**: fast runs had mean pre-delay 10.4 s, slow runs 32.3 s.
+
+**But the latency is not a countdown to a tick.** Pooling all 18 observations from steps 2 and 2b:
+
+```
+0.000 0.008 0.008 0.008 0.010 0.018 0.030 0.045 0.169 |gap| 36.516 36.908 38.286 40.787 43.988 44.725 48.207 50.047 50.234
+```
+
+**Nothing falls between 0.2 s and 36 s.** A uniform wait-for-next-tick, with restart phase sampled roughly uniformly by the randomized delay, would populate that interval; it is empty across 18 runs. So the mechanism is better described as **two discrete paths** — an immediate catch-up that either does or does not capture the restarting node, and, when it does not, a wait of ~36–50 s — rather than a continuous countdown.
+
+**A claim in an earlier draft of this spec is withdrawn on this evidence:** it described the wait as "time-until-the-next-tick, uniform-ish over an interval of roughly 40–50 s". The uniform-interval half is falsified by the gap. The timing-determined half survives.
 
 ### Step 3 — the decision
 
@@ -113,7 +149,7 @@ At a 40–50 s window: **1 s cadence gives 40–50 samples; 5 s gives 8–10.** 
 
 **The healing signal is a step, not a decay.** `completeness` on a diverged replica stays flat and then jumps to complete at the next sync tick. That changes what the dissociation experiment should measure: not the *shape* of a repair curve, but **whether the step happens for `completeness` and does not happen for `index_recall`** within the same window. That is an easier and more robust claim than a curve comparison, and it is unaffected by where in the sync cycle a run happens to start — provided each run is observed for longer than one full interval (≥60 s to be safe at 40–50 s observed).
 
-**What is not established.** The sync interval's actual value or configurability — 38–50 s is the range of *observed waits*, which under the periodic-sync reading is a sample of "time until next tick", not the interval itself; the interval could be estimated properly with many restarts at random phases, which was not done. Whether divergence size matters *above* 5,000 — the 20,000 cell failed on the probe's URL ceiling, not on repair. Whether repair behaves differently after a long outage: writing 20,000 objects took 48.6 s, so big divergences are also long outages, and the two are confounded by construction here. n = 2–3 per cell, one host, one build.
+**What is not established.** The mechanism behind the two paths — neither the fast catch-up nor the slow sync was observed in Weaviate itself, only their effect on a probe. The slow path's ~36–50 s spread is not resolved into a period; that would need many more restarts and a way to observe the scheduler. Why a longer pre-delay makes the slow path likelier (10.4 s vs 32.3 s mean) is unexplained and is the obvious next question if this ever matters. Whether divergence size matters *above* 5,000 — the 20,000 cell failed on the probe's URL ceiling, not on repair. Whether repair behaves differently after a long outage: writing 20,000 objects took 48.6 s, so big divergences are also long outages, and the two are confounded by construction here. n = 2–3 per cell, one host, one build.
 
 ## Decision
 

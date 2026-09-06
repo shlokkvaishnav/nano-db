@@ -1,0 +1,72 @@
+[
+  {
+    "rep": 0,
+    "delay": 6.7,
+    "repair_s": 0.018,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 1,
+    "delay": 19.2,
+    "repair_s": 0.0,
+    "first": 50,
+    "converged": true
+  },
+  {
+    "rep": 2,
+    "delay": 44.3,
+    "repair_s": 36.908,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 3,
+    "delay": 16.4,
+    "repair_s": 36.516,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 4,
+    "delay": 4.3,
+    "repair_s": 0.008,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 5,
+    "delay": 11.7,
+    "repair_s": 0.03,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 6,
+    "delay": 7.7,
+    "repair_s": 0.008,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 7,
+    "delay": 13.0,
+    "repair_s": 0.045,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 8,
+    "delay": 29.2,
+    "repair_s": 48.207,
+    "first": 0,
+    "converged": true
+  },
+  {
+    "rep": 9,
+    "delay": 39.4,
+    "repair_s": 43.988,
+    "first": 0,
+    "converged": true
+  }
+]
