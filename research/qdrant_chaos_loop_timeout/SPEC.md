@@ -62,6 +62,13 @@ A timeout that is too short would turn slow-but-successful restarts (Qdrant's `d
 
 ---
 
+
+## Instrument characterization
+
+*Section added 2026-09-06. `SPEC_TEMPLATE.md:43` made this required on 2026-09-03; these five SPECs were opened after that date without it. The text below records what the study actually established about its apparatus — it is not back-filled content invented after the fact.*
+
+This study **is** an instrument characterization in the strictest sense: the apparatus was the subject. The property surfaced is that both chaos loops run in daemon threads with no exception handling, so a `TimeoutExpired` ended a loop with no event, no log line and a normal exit — a run that reported success while injecting no chaos. Known remaining gap, named rather than fixed: the sampler and validator threads have the same shape.
+
 ## Results
 
 **Root cause, more specific than this issue guessed.** The issue said "a `docker kill`/`start` call that blocked is consistent with [the 127s window]." It is narrower than that: `ManagedContainer._docker` already runs `subprocess.run(..., timeout=30)`, so a hung daemon does **not** block forever — it raises `subprocess.TimeoutExpired`. Both chaos loops run in **daemon threads** with no exception handling, so that raise ends the loop immediately and silently: no event, no log line, no non-zero exit. The run then completes normally. `chaos_stop_rel` is recorded when the phase timer ends and the container-revival loop finishes, which is why the window read 127s while `events.json` was empty. The proposed fix (add a timeout) was already half-present; what was missing was catching what the timeout raises.
@@ -80,6 +87,31 @@ A timeout that is too short would turn slow-but-successful restarts (Qdrant's `d
 - **Live run** (`--chaos-duration 40 --pre-chaos-s 15 --duration 90`, 60k vectors, seed 20261200): `kill_count: 3`, `kill_failures: 0`, `chaos_no_kills: false`, `chaos_requested_s: 40`, `chaos_realized_s: 40.929`, three events all `failed: false` with `alive_after_restart: true`. A healthy run is unchanged apart from the new fields.
 
 **What this does not do.** It does not make a hung Docker daemon less likely, and it does not retro-diagnose seed 20261100 — that run predates the fix, so its `events.json` is empty either way and it stays excluded in `../qdrant_index_recall_healing/`. It does not add a timeout to the *sampler* or *validator* threads, which have the same daemon-thread shape and are the obvious next place to look; that is deliberately out of scope here rather than folded in.
+
+## Interpretation
+
+The defect is not that a Docker call can hang — that was already handled, with a
+30 s timeout. The defect is that the handling **raised into a daemon thread
+nobody was watching**, which converted a recoverable error into a run that
+looked complete and was empty. The instrument reported success while measuring
+nothing.
+
+That is worth naming precisely, because it is the same shape as the phenomenon
+this project studies. The research claim is that an approximate index which
+loses data still returns plausible answers, so no checker fires; here a chaos
+harness that stopped injecting chaos still produced a well-formed `samples.csv`,
+so no reviewer fired. In both cases the failure is invisible **at the level
+anyone is looking at**.
+
+The generalisable lesson is the one now applied across this repo: an instrument
+must be able to say *"I did not measure anything"*, and something downstream
+must refuse that record. Hence the three levels — a `failed` event, a
+`chaos_no_kills` flag in `run_meta`, and a sweep that rejects the run outright.
+A fix at only the first level would have left the same silence one layer up.
+
+The scope limit is deliberate. The sampler and validator threads share the same
+daemon-thread shape and are unfixed; they are named here rather than repaired,
+so the next person meets a known gap instead of an unknown one.
 
 ## Decision
 

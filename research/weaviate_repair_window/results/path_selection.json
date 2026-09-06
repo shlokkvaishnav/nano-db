@@ -1,0 +1,182 @@
+[
+ {
+  "cond": "C_long_young",
+  "seed": 2000,
+  "absent_s": 40.0,
+  "age_s": 6.0,
+  "repair_s": 30.334,
+  "first": 0,
+  "converged": true,
+  "i": 0
+ },
+ {
+  "cond": "A_short",
+  "seed": 2001,
+  "absent_s": 6.0,
+  "age_s": 3.8,
+  "repair_s": 0.025,
+  "first": 0,
+  "converged": true,
+  "i": 1
+ },
+ {
+  "cond": "B_long",
+  "seed": 2002,
+  "absent_s": 40.0,
+  "age_s": 37.1,
+  "repair_s": 0.735,
+  "first": 0,
+  "converged": true,
+  "i": 2
+ },
+ {
+  "cond": "C_long_young",
+  "seed": 2003,
+  "absent_s": 40.0,
+  "age_s": 6.0,
+  "repair_s": 31.096,
+  "first": 0,
+  "converged": true,
+  "i": 3
+ },
+ {
+  "cond": "B_long",
+  "seed": 2004,
+  "absent_s": 40.0,
+  "age_s": 37.9,
+  "repair_s": 1.125,
+  "first": 0,
+  "converged": true,
+  "i": 4
+ },
+ {
+  "cond": "B_long",
+  "seed": 2005,
+  "absent_s": 40.0,
+  "age_s": 38.0,
+  "repair_s": 1.288,
+  "first": 0,
+  "converged": true,
+  "i": 5
+ },
+ {
+  "cond": "B_long",
+  "seed": 2006,
+  "absent_s": 40.0,
+  "age_s": 39.1,
+  "repair_s": 2.245,
+  "first": 0,
+  "converged": true,
+  "i": 6
+ },
+ {
+  "cond": "A_short",
+  "seed": 2007,
+  "absent_s": 6.0,
+  "age_s": 5.0,
+  "repair_s": 0.021,
+  "first": 0,
+  "converged": true,
+  "i": 7
+ },
+ {
+  "cond": "C_long_young",
+  "seed": 2008,
+  "absent_s": 40.0,
+  "age_s": 6.0,
+  "repair_s": 31.146,
+  "first": 0,
+  "converged": true,
+  "i": 8
+ },
+ {
+  "cond": "A_short",
+  "seed": 2009,
+  "absent_s": 6.0,
+  "age_s": 4.9,
+  "repair_s": 51.663,
+  "first": 0,
+  "converged": true,
+  "i": 9
+ },
+ {
+  "cond": "C_long_young",
+  "seed": 2010,
+  "absent_s": 40.0,
+  "age_s": 6.0,
+  "repair_s": 31.099,
+  "first": 0,
+  "converged": true,
+  "i": 10
+ },
+ {
+  "cond": "B_long",
+  "seed": 2011,
+  "absent_s": 40.0,
+  "age_s": 37.2,
+  "repair_s": 1.223,
+  "first": 0,
+  "converged": true,
+  "i": 11
+ },
+ {
+  "cond": "A_short",
+  "seed": 2012,
+  "absent_s": 6.0,
+  "age_s": 3.4,
+  "repair_s": 52.335,
+  "first": 0,
+  "converged": true,
+  "i": 12
+ },
+ {
+  "cond": "A_short",
+  "seed": 2013,
+  "absent_s": 6.0,
+  "age_s": 4.2,
+  "repair_s": 52.281,
+  "first": 0,
+  "converged": true,
+  "i": 13
+ },
+ {
+  "cond": "C_long_young",
+  "seed": 2014,
+  "absent_s": 40.0,
+  "age_s": 6.0,
+  "repair_s": 30.353,
+  "first": 0,
+  "converged": true,
+  "i": 14
+ },
+ {
+  "cond": "C_long_young",
+  "seed": 2015,
+  "absent_s": 40.0,
+  "age_s": 6.0,
+  "repair_s": 30.688,
+  "first": 0,
+  "converged": true,
+  "i": 15
+ },
+ {
+  "cond": "A_short",
+  "seed": 2016,
+  "absent_s": 6.0,
+  "age_s": 4.8,
+  "repair_s": 51.578,
+  "first": 0,
+  "converged": true,
+  "i": 16
+ },
+ {
+  "cond": "B_long",
+  "seed": 2017,
+  "absent_s": 40.0,
+  "age_s": 37.8,
+  "repair_s": 0.995,
+  "first": 0,
+  "converged": true,
+  "i": 17
+ }
+]

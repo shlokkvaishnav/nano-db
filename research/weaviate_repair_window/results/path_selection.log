@@ -1,0 +1,36 @@
+shard: bJwvX499gVJo   size: 50   reps/cond: 6
+order: C A B C B B B A C A C B A A C C A B
+
+  i  cond            absent_s  age_s  repair_s   first
+   0  C_long_young       40.0    6.0    30.334   0/50
+   1  A_short             6.0    3.8     0.025   0/50
+   2  B_long             40.0   37.1     0.735   0/50
+   3  C_long_young       40.0    6.0    31.096   0/50
+   4  B_long             40.0   37.9     1.125   0/50
+   5  B_long             40.0   38.0     1.288   0/50
+   6  B_long             40.0   39.1     2.245   0/50
+   7  A_short             6.0    5.0     0.021   0/50
+   8  C_long_young       40.0    6.0    31.146   0/50
+   9  A_short             6.0    4.9    51.663   0/50
+  10  C_long_young       40.0    6.0    31.099   0/50
+  11  B_long             40.0   37.2     1.223   0/50
+  12  A_short             6.0    3.4    52.335   0/50
+  13  A_short             6.0    4.2    52.281   0/50
+  14  C_long_young       40.0    6.0    30.353   0/50
+  15  C_long_young       40.0    6.0    30.688   0/50
+  16  A_short             6.0    4.8    51.578   0/50
+  17  B_long             40.0   37.8     0.995   0/50
+
+=== result ===
+  A_short        slow 4/6   [0.021, 0.025, 51.578, 51.663, 52.281, 52.335]
+  B_long         slow 4/6   [0.735, 0.995, 1.125, 1.223, 1.288, 2.245]
+  C_long_young   slow 6/6   [30.334, 30.353, 30.688, 31.096, 31.099, 31.146]
+
+  Fisher exact A vs C: p = 0.4545   (the discriminating comparison)
+  Fisher exact A vs B: p = 1.0000   (the step 2b association)
+
+  !! 12 run(s) landed INSIDE the 0.2-36 s gap: [30.334, 0.735, 31.096, 1.125, 1.288, 2.245, 31.146, 31.099, 1.223, 30.353, 30.688, 0.995] -- this weakens the two-path reading
+
+  pre-registered outcome: (d) mixed -- report rates, name no mechanism
+
+wrote C:\Users\shlok\OneDrive\Documents\Projects\Replica-Recall-Divergence\research\weaviate_repair_window\results\path_selection.json

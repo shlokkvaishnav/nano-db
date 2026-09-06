@@ -69,6 +69,13 @@ Feasibility, with one number that decides the outcome: **the number of consecuti
 
 ---
 
+
+## Instrument characterization
+
+*Section added 2026-09-06. `SPEC_TEMPLATE.md:43` made this required on 2026-09-03; these five SPECs were opened after that date without it. The text below records what the study actually established about its apparatus — it is not back-filled content invented after the fact.*
+
+This study **is** an instrument characterization: it measures what the cluster-internal API can and cannot do before anything depends on it. Properties surfaced and carried forward: 20/20 probes at 5 s cadence with peers up; locality proven by refusal-when-down and by a 0-vs-31,190-byte split; `_search` returning 415 across 12 content types, which is what makes the Weaviate leg asymmetric (`completeness` samplable, `index_recall` snapshot-only).
+
 ## Results
 
 Live 3-node Weaviate 1.29.0, `weaviate_topology.py`'s cluster with one addition: the internal port published (`INTERNAL_BASE = 7947`, host `7947+n`), because the API below is **not** served on the main HTTP port — every `/indices/...` and `/replicas/...` path 404s there. Scripts: `internal_api.py`.
@@ -103,7 +110,7 @@ With all peers up and healthy, all three replicas returned byte-identical respon
 
 ### Async repair is far faster than previously observed
 
-node2 went from 0 bytes to node0's 31,190 **between t+0.9s and t+1.2s — about 0.3s**, with no restart. An earlier attempt in this same study polled every 2s and saw all three replicas equal at every sample, concluding "no divergence visible"; that conclusion was wrong, and it was wrong because the poll interval was slower than the thing being measured. Recorded because it is the same failure that voided #24 (sampling slower than the signal), reproduced here in a study whose whole subject is sampling.
+node2 went from 0 bytes to node0's 31,190 **between t+0.9s and t+1.2s — about 0.3s**, with no restart. An earlier attempt in this same study polled every 2s and saw all three replicas equal at every sample, concluding "no divergence visible"; that conclusion was wrong, and it was wrong because the poll interval was slower than the thing being measured. Recorded because it is the same failure that voided #24 (sampling slower than the signal), reproduced here in a study whose whole subject is sampling. **Note added 2026-09-06 (#48, PR #51):** the causal reasoning in this paragraph holds only for repairs that take the fast route. #48 showed repair latency is timing-determined and spans milliseconds to ~52 s, so a 2 s poll misses only the fast ones — the diagnosis "the poll was slower than the signal" is correct for this observation but does not generalise into a sampling requirement.
 
 ### What does not work: per-replica search
 
@@ -120,7 +127,7 @@ So the Weaviate experiment can have:
 
 That is backwards from what would be most convenient — `index_recall` is the metric carrying the project's claim — and #43 flagged this exact possibility as the "third failure mode." It does **not** kill the dissociation prediction: showing that `completeness` heals (time series) while `index_recall` is still damaged (snapshot at the end of the same run) is a coherent design, and arguably a fair one, since the two metrics are then measured by different instruments and cannot share an artifact.
 
-**A finding for the experiment, not just the instrument:** repair completed in ~0.3s for 50 objects. Any Weaviate healing measurement must sample faster than that or it will report "no divergence" the way this study's first attempt did. That is a hard constraint on the experiment's design and is the most transferable thing here.
+**A finding for the experiment, not just the instrument:** repair completed in ~0.3s for 50 objects. Any Weaviate healing measurement must sample faster than that or it will report "no divergence" the way this study's first attempt did. That is a hard constraint on the experiment's design and is the most transferable thing here. **Corrected 2026-09-06 (#48, PR #51):** the sentence above is withdrawn. "~0.3 s" is one draw from a bimodal distribution, not a bound — repeating the same 50-object divergence gives 44.7 s, 0.008 s, 0.010 s, and across 18 runs every observation is either sub-0.2 s or 36–50 s with nothing in between. Sampling need only beat the **slow** path, so 1–5 s cadence is sufficient and sub-second sampling is not required. A fast-path run has no observable window at any cadence, which is a property of the repair, not of the probe.
 
 **What is not established.** Whether `_search`'s encoding is reachable at all (unread source, not proven absent). Whether the binary object encoding can be parsed for vectors — this study reads only response *size*, which supports presence comparisons and nothing finer. Repair timing at realistic corpus sizes: 50 objects at 128-d is small, and 0.3s is one observation, n = 1. Whether the internal API is stable across versions — it is not a documented contract, and PR #42's review already noted the image is pinned by mutable tag, which matters more now that this branch depends on an undocumented API of that exact build.
 
@@ -131,6 +138,6 @@ That is backwards from what would be most convenient — `index_recall` is the m
 **Consequences to file, each its own issue:**
 1. `experiment/*` — the dissociation prediction in its **asymmetric** form: `completeness` time series via this probe, `index_recall` snapshot via #41's, in one run. This is now designable and is the Weaviate leg's actual experiment.
 2. `method/*` — pin `WEAVIATE_IMAGE` by digest (PR #42 review's non-blocking note), now blocking, because this branch depends on an undocumented API of a specific build.
-3. `method/*` — sub-second sampling for the Weaviate probe, since repair beat a 2s poll here; and, if it is cheap, decoding the binary object payload so presence becomes per-id rather than by response size.
+3. `method/*` — sub-second sampling for the Weaviate probe, since repair beat a 2s poll here; and, if it is cheap, decoding the binary object payload so presence becomes per-id rather than by response size. **Corrected 2026-09-06 (#48, PR #51):** withdrawn. "~0.3 s" is one draw from a wide, timing-determined distribution — the same 50-object divergence gives 44.7 s, 0.008 s, 0.010 s — so it is not a bound and sub-second sampling was never a prerequisite. 1–5 s cadence over a ≥60 s observation is sufficient. The follow-on named here was cancelled by #48's decision.
 
 **Not proposed:** reading Weaviate's source to find `_search`'s encoding. It may be the right move later; it is a different kind of work from this project's other instrument branches and should be decided deliberately, not slipped in.

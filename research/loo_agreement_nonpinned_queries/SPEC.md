@@ -2,7 +2,7 @@
 
 **Branch:** `experiment/loo-agreement-nonpinned-queries`
 **Date opened:** 2026-08-23
-**Status:** DRAFT — no implementation or results yet. This file is committed before either exists.
+**Status:** COMPLETE — closed on a clean null across three 5-seed conditions; `--loo-query-mode` merged as infrastructure. *Header corrected 2026-09-06: this said DRAFT while carrying Results, Interpretation and a Decision.*
 
 Issue: closes #5. Body copied verbatim below (per `research/AGENT_PIPELINE.md`'s implementer instructions — this is the issue text unmodified, not a paraphrase).
 
