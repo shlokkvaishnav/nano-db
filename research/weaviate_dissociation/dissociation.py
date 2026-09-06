@@ -158,9 +158,24 @@ def index_recall_snapshot(node, shard, ids, vecs, queries, dry, distance="cosine
     if dry:
         log(f"    [dry] isolate node{node}, {len(queries)} queries, restore")
         return None
+    # Amendment 2c: PAUSE the peers, do not STOP them.
+    #
+    # #41 isolated by stopping peers, ran the probe once, and recorded that it
+    # cost ~10 minutes of node health. This experiment needs 20 isolations, and
+    # at that rate stopping is not merely slow, it is destructive: stopping two
+    # of three nodes drops Raft below quorum, and on restart the peers come back
+    # with new addresses. Twice in this study that left the cluster unable to
+    # elect a leader at all ("attempted to join and failed", "invalid port
+    # 99999999") and forced a rebuild from docker-compose with fresh volumes.
+    #
+    # `docker pause` SIGSTOPs the processes instead. The victim is just as
+    # isolated -- its peers answer nothing -- but nothing terminates, no address
+    # changes, and unpausing restores the identical membership. Measured:
+    # isolated index_recall 0.98 with all 5,000 ids held, and after unpause
+    # 3 of 3 replicas still hold the shard with the schema readable.
     for p in PEERS:
         if p != node:
-            subprocess.run(["docker", "stop", t.container_name(p)], capture_output=True)
+            subprocess.run(["docker", "pause", t.container_name(p)], capture_output=True)
     time.sleep(3)
     try:
         ok, held = objects_present_ids(node, shard, ids[:ID_CAP])
@@ -182,7 +197,7 @@ def index_recall_snapshot(node, shard, ids, vecs, queries, dry, distance="cosine
     finally:
         for p in PEERS:
             if p != node:
-                subprocess.run(["docker", "start", t.container_name(p)],
+                subprocess.run(["docker", "unpause", t.container_name(p)],
                                capture_output=True)
         for p in PEERS:
             if p != node:
