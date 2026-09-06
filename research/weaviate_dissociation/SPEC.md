@@ -48,7 +48,9 @@ Four method studies (#41, #43, #46, #48) exist solely to make this runnable, and
 
 **Ground truth for `index_recall` is computable locally and needs no server support.** The corpus is generated from a seeded RNG, so the exact top-k over *the subset the replica actually holds* — which `objects_present_ids` reports — can be computed with numpy. `index_recall` is then the replica's ANN result against exact search over its own data, holding data constant, which is the definition this project already uses on nano-db and Qdrant.
 
-**One parameter is blocked.** The observation window must be timed from the right origin, and whether Weaviate's repair clock is anchored to the write or the restart is exactly what **#56** is measuring right now. Until it reports, this spec fixes the window as *"≥60 s measured from the later of (write, restart)"*, which is safe under either answer at the cost of a longer run. If #56 settles the anchor, this is tightened and the amendment dated.
+~~**One parameter is blocked.** The observation window must be timed from the right origin, and whether Weaviate's repair clock is anchored to the write or the restart is exactly what **#56** is measuring right now. Until it reports, this spec fixes the window as *"≥60 s measured from the later of (write, restart)"*, which is safe under either answer at the cost of a longer run. If #56 settles the anchor, this is tightened and the amendment dated.~~
+
+**Unblocked by #56 — see Amendment 1 (2026-09-06) below.** The window is now timed from the **restart**, and a `t = 0` completion is recorded as **censored**, not as an instant recovery.
 
 ## Metrics
 
@@ -91,11 +93,110 @@ Whatever the outcome, the write-up carries **the asymmetry of the instrument in 
 
 **Write duration is outage duration.** Writing 5,000 objects while the victim is down makes the divergence and the outage the same interval (#48), and #56 found the write can occasionally take minutes.
 
-**The repair clock's origin is unresolved** (#56, running) — hence the conservative window above.
+~~**The repair clock's origin is unresolved** (#56, running) — hence the conservative window above.~~ **Resolved, partially, by #56 — see Amendment 1.** Within a regime the clock runs from the restart; *which* regime is selected by divergence age. The window is anchored accordingly and the realized age is recorded per run so the regime is known rather than assumed.
 
 **Undocumented API.** The probe depends on an internal endpoint of one pinned build; a Weaviate upgrade invalidates the instrument, not just the numbers.
 
 **One host, one topology, 5 seeds** — the same scale limit every study here carries.
+
+## Amendment 1 (2026-09-06, before any run): the window is anchored to the restart, and `t = 0` is censored
+
+The blocked parameter above is unblocked. #56 (PR #59) has reported, and this
+amendment applies its answer. **No run of this spec has happened yet** — the
+harness has never been executed against a cluster and `results/` holds no data —
+so nothing here is a post-hoc choice. It is dated anyway, because a window
+origin changed after a dependency reported is exactly the kind of edit that has
+to be legible later.
+
+### What #56 found, and the part of it this spec depends on
+
+#56 asked whether repair is anchored to the write or the restart and returned
+**neither, cleanly**. Its aggregate statistic said write-anchored — CV(`repair_s`)
+0.766 against CV(`age + repair`) 0.132, corr(age, `repair_s`) = −0.942 — and
+disaggregating by divergence age **reverses** it: within either regime `repair_s`
+is flat (spreads of 2.34 s and 1.45 s across 13 s and 8 s of age variation) while
+`age + repair` tracks age at +0.99. The aggregate slope is produced entirely by a
+step *between* regimes. Simpson's paradox.
+
+Two consequences, and this spec needs both:
+
+1. **Within a regime, the clock runs from the restart.** So the window is timed
+   from the restart.
+2. **Divergence age selects the regime.** Below ~15 s the victim waits ~32 s;
+   above ~30 s it reconciles in ~2 s. The threshold is bracketed to (15 s, 30 s)
+   and was never sampled.
+
+**This experiment sits in the young regime by construction.** The harness restarts
+the victim immediately after the divergence write returns, so realized age is
+≈ 0 s — younger than any age #56 sampled, and its nearest observations (realized
+ages 0.126 s and 0.186 s) gave `repair_s` of 30.4 s and 19.4 s. Expect the ~32 s
+wait, not the ~2 s one.
+
+Provenance note, so this is not read as firmer than it is: PR #59 is at
+`stage:changes-requested` as of this writing. Its five review findings concern a
+step-1 number that disagrees with its own analyzer output, an unscoped "absence is
+irrelevant" claim, run accounting, and the disaggregation not being reproducible
+from committed code. **None of them bear on the two consequences above** — review
+round 1 recomputed the regime split independently from the committed raw JSON and
+reproduced it exactly, with the two clusters disjoint (31.08–33.43 s and
+0.82–2.27 s, nothing between). If a later round overturns the split itself, this
+amendment is void and the window returns to `max(write, restart)`.
+
+### The three changes
+
+**(1) Origin: the restart, not `max(write, restart)`.** `origin = t_restart`.
+Under the old rule a write that takes minutes pushes the origin past the restart
+and the window opens *after* repair has already fired — the failure that voided
+#24 and #9, arriving from the direction #56 warned about. The realized divergence
+age `age_s = t_restart − t_write` is recorded per run, and a run whose age lands
+above 15 s is reported as **out of the young regime** rather than pooled with the
+others. #56's own methodological finding is that pooling across a step is what
+produced its wrong answer; this spec will not repeat it at n = 5.
+
+**(2) A `t = 0` completion is censored, not instant.** #56's probe-perturbation
+check was voided by exactly this: its three slow-poll runs report `repair_s = 0.000`
+with `first = 50/50` — the victim already held every id on its *first* sample. That
+does not show repair was instantaneous. It shows the first sample landed after
+convergence, and at a 1 s cadence the two are indistinguishable.
+
+This spec plans that same 1 s cadence, so it inherits the same blind spot. The
+harness therefore records the first sample's offset from the origin
+(`first_sample_offset_s`), and:
+
+- if the **first** sample is already complete, `recovery_s` is **left-censored**:
+  recorded as `censored: "left"` with the observed bound, and reported as
+  *"recovered at or before t = <offset>"*, never as a recovery time;
+- if the **last** sample is still incomplete, it is **right-censored**
+  (`censored: "right"`) — recovery did not occur within the window;
+- only a run with an incomplete first sample and a complete later one yields an
+  uncensored `recovery_s`.
+
+Censored runs are **kept, not dropped**, and the censoring status is reported
+alongside every recovery figure. This matters for the primary metric: the
+dissociation asks whether `completeness` returns to 1.0 within the window, and a
+left-censored run answers that **yes** — the censoring bounds *when*, not
+*whether*. Secondary time-to-recovery is the quantity that degrades to a bound.
+
+**(3) The ≥60 s window stands, and here is its actual margin.** It is not
+generous. The slowest repair observed anywhere in this project is **53.3 s**
+(#56, `short6`), against a 60 s window — 6.7 s of margin, not the comfortable
+outlasting the original line implied. It is kept rather than lengthened because
+the expected young-regime wait is ~32 s and every young-regime observation across
+#48 and #56 falls in 19.4–33.4 s, so 60 s covers the expected behaviour with
+roughly 2× margin and the tail case with little. Right-censoring (change 2) is
+what makes that honest: a run that does not converge by t = 60 s is recorded as
+censored rather than as a failure to heal, and outcome (ii) — "neither heals" —
+may not be concluded from a right-censored series.
+
+### What this does not fix
+
+The threshold between the regimes is unlocated, so "this experiment sits in the
+young regime" rests on realized age ≈ 0 s being far below a bracket of (15 s, 30 s),
+not on knowing where the boundary is. And #56's short-outage bimodality (six runs
+at ~0.02 s against four at 43–53 s at identical parameters) is unexplained; if it
+reaches this experiment it will appear as a mixture across seeds, which n = 5
+cannot resolve. Both are stated here so a mixed result is not later reframed as
+a surprise.
 
 ## Results
 

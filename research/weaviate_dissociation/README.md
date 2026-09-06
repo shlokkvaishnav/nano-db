@@ -29,9 +29,18 @@ The corpus comes from a seeded RNG, so the exact top-k over *the subset a replic
 
 **The base and divergence id sets must be disjoint.** Re-writing the same ids while the victim is down leaves it missing only the *updates*, and a presence probe cannot see versions — so the victim would read as complete and the primary metric would report a false negative. Verified disjoint.
 
-## One parameter is blocked on #56
+## The window parameter — unblocked by #56 (Amendment 1, 2026-09-06)
 
-The observation window must be timed from the right origin, and whether Weaviate's repair clock is anchored to the write or the restart is exactly what #56 is measuring. Until it reports, the window is **≥60 s from the later of (write, restart)** — safe under either answer, at the cost of a longer run. When #56 lands, this gets tightened and the amendment dated.
+It was blocked: the window has to be timed from the right origin, and whether Weaviate's repair clock is anchored to the write or the restart was exactly what #56 was measuring. It has reported, and the answer is **neither, cleanly** — within a regime the clock runs from the **restart**, and divergence *age* selects which regime you are in (below ~15 s the victim waits ~32 s; above ~30 s it reconciles in ~2 s).
+
+Applied here, before any run:
+
+- **Origin: the restart**, no longer `max(write, restart)`. Under the old rule a slow write — and #56 saw writes at `consistency_level=ONE` take minutes with a node down — pushes the origin past the restart, so the window opens *after* repair has already fired. That is the failure that voided #24 and #9.
+- **A `t = 0` completion is censored, not instant.** #56's own probe-perturbation check was voided by this: it reported `repair_s = 0.000` with the victim already holding 50/50 ids on its *first* sample. At a 1 s cadence — which this experiment plans — "repaired instantly" and "the first sample landed after repair" are indistinguishable. Recovery is therefore recorded as left-censored (complete on first look), right-censored (never complete in the window), or an actual time. Censored runs are kept, and a left-censored run still answers the primary question — completeness *did* return within the window; only *when* is bounded rather than measured.
+- **≥60 s stands, with its real margin stated.** The expected young-regime wait is ~32 s, but the slowest repair seen anywhere in this project is 53.3 s — 6.7 s of margin, not the comfortable outlasting the earlier wording implied. Right-censoring is what keeps that honest.
+- **Realized divergence age is recorded per run.** It should be ≈ 0 s here (the victim restarts as soon as the divergence write returns), placing every run in the young regime. Recorded rather than assumed: pooling across the regime step is precisely what gave #56 its wrong aggregate answer.
+
+Full reasoning, including why this is not void if PR #59 changes under review: [`SPEC.md`](SPEC.md) § Amendment 1.
 
 ## Running it
 

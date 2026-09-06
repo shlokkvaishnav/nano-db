@@ -56,7 +56,10 @@ PEERS = (0, 1)
 # From #48, all measured rather than chosen. See SPEC.md.
 DIVERGENCE = 5_000      # size-independent repair, but 5k gives a resolvable ramp
 CADENCE_S = 1.0         # #43: 5 s proven; 1 s resolves the ~6 s ramp at this size
-OBSERVE_S = 60.0        # outlasts the longest repair seen (~52 s)
+OBSERVE_S = 60.0        # young-regime wait is ~32 s (#56); the slowest repair
+                        # seen anywhere is 53.3 s, so the margin is 6.7 s, not
+                        # comfortable. Amendment 1: a series that never completes
+                        # is RIGHT-censored, not a failure to heal.
 ID_CAP = 15_000         # base64 ids in the URL fail SILENTLY above this
 K = 10
 
@@ -151,6 +154,52 @@ def index_recall_snapshot(node, shard, ids, vecs, queries, dry):
                 wait_ready(p)
 
 
+def recovery_with_censoring(series):
+    """Time-to-completeness-recovery, with censoring recorded, per Amendment 1.
+
+    A 1 s cadence cannot tell "repair was instantaneous" from "the first sample
+    landed after repair finished" -- #56's probe-perturbation check was voided by
+    exactly that, reporting repair_s = 0.000 with the victim already holding
+    50/50 ids on its first sample. So a t=0 completion is CENSORED, not instant.
+
+      left   -- the first sample was already complete. Recovery happened at or
+                before that sample's offset. The bound is real; the time is not.
+      right  -- the last sample was still incomplete. Recovery did not occur
+                within the window. NOT evidence that it never would.
+      none   -- an incomplete first sample and a complete later one. This is the
+                only case that yields a recovery TIME.
+
+    Censored runs are kept. For the primary metric a left-censored run still
+    answers "did completeness return to 1.0 within the window" with yes -- the
+    censoring bounds *when*, not *whether*.
+    """
+    out = {"first_sample_offset_s": None, "recovery_s": None,
+           "recovery_bound_s": None, "censored": None}
+    ok = [s for s in series if s["ok"] and s["n"] is not None]
+    if not ok:
+        out["censored"] = "no-data"
+        return out
+
+    out["first_sample_offset_s"] = ok[0]["t"]
+    complete = [s for s in ok if s["n"] >= DIVERGENCE]
+
+    if not complete:
+        out["censored"] = "right"
+        out["recovery_bound_s"] = ok[-1]["t"]
+        return out
+
+    if ok[0]["n"] >= DIVERGENCE:
+        # Already complete on the first look: repair fell inside the blind spot
+        # between the restart and the first probe.
+        out["censored"] = "left"
+        out["recovery_bound_s"] = ok[0]["t"]
+        return out
+
+    out["censored"] = "none"
+    out["recovery_s"] = complete[0]["t"]
+    return out
+
+
 def one_run(seed, chaos, shard, dry):
     """One seed, one condition.
 
@@ -193,16 +242,25 @@ def one_run(seed, chaos, shard, dry):
             subprocess.run(["docker", "start", t.container_name(VICTIM)],
                            capture_output=True)
             t_restart = time.time()
-            # #56: the repair clock's origin is unresolved, and the write can
-            # take minutes. Time the window from the LATER of the two, which is
-            # safe under either answer at the cost of a longer run.
+            # SPEC Amendment 1 (2026-09-06). #56 reported: within a regime the
+            # repair clock runs from the RESTART, and divergence age selects the
+            # regime. So the origin is the restart, not max(write, restart) --
+            # under the old rule a write that takes minutes opens the window
+            # AFTER repair has already fired.
             rec["write_s"] = round(t_write - t_write0, 2)
-            origin = max(t_write, t_restart)
+            # Realized divergence age. ~0 here by construction, which puts this
+            # run in #56's young regime (expect a ~32 s wait). Recorded, not
+            # assumed: a run above 15 s is out of that regime and is reported
+            # separately rather than pooled -- pooling across the step is what
+            # gave #56 its wrong aggregate answer.
+            rec["age_s"] = round(t_restart - t_write, 3)
+            rec["regime"] = "young" if rec["age_s"] < 15.0 else "out-of-regime"
+            origin = t_restart
         else:
             origin = time.time()
 
         log(f"  sampling completeness over the DIVERGENCE set every "
-            f"{CADENCE_S}s for {OBSERVE_S}s from max(write, restart)")
+            f"{CADENCE_S}s for {OBSERVE_S}s from the restart")
         series = []
         if not dry:
             end = origin + OBSERVE_S
@@ -214,6 +272,7 @@ def one_run(seed, chaos, shard, dry):
         rec["completeness_series"] = series
         last = series[-1]["n"] if series and series[-1]["n"] is not None else None
         rec["completeness_end"] = (last / DIVERGENCE) if last is not None else None
+        rec.update(recovery_with_censoring(series))
 
     log("  index_recall snapshot AFTER")
     rec["index_recall_after"] = index_recall_snapshot(
