@@ -3,7 +3,7 @@
 **Branch:** `method/weaviate-repair-window` (from #47's head; stacked behind it until it lands on `main`)
 **Issue:** #48 (body copied verbatim below, per `AGENT_PIPELINE.md`)
 **Date opened:** 2026-09-05
-**Status:** COMPLETE
+**Status:** COMPLETE — amended 2026-09-06 (step 2c), and step 2b's "two discrete paths" reading **withdrawn** on that amendment's data
 
 ### Type
 
@@ -135,6 +135,8 @@ They were separated by repeating a fixed divergence (50 objects) **10 times with
 
 **Nothing falls between 0.2 s and 36 s.** A uniform wait-for-next-tick, with restart phase sampled roughly uniformly by the randomized delay, would populate that interval; it is empty across 18 runs. So the mechanism is better described as **two discrete paths** — an immediate catch-up that either does or does not capture the restarting node, and, when it does not, a wait of ~36–50 s — rather than a continuous countdown.
 
+> **WITHDRAWN 2026-09-06 by step 2c.** The paragraph above is false. Step 2c ran 18 more repairs at fixed timing offsets and **12 of them land between 0.2 s and 36 s**. The interval was empty in step 2b because randomizing the delay sampled the latency surface sparsely, not because Weaviate has two paths. The withdrawn text is kept in place, as `GIT_WORKFLOW.md` requires. See step 2c below.
+
 **A claim in an earlier draft of this spec is withdrawn on this evidence:** it described the wait as "time-until-the-next-tick, uniform-ish over an interval of roughly 40–50 s". The uniform-interval half is falsified by the gap. The timing-determined half survives.
 
 
@@ -173,6 +175,33 @@ C is the discriminating cell. If **absence** selects the path, C behaves like B 
 
 **Interpretation plan.** (a) or (b) names the controlled variable and the dissociation experiment can *choose* its path rather than accept whichever it draws — worth having, because a fast-path run has no observable healing window at all. (c) retracts the step 2c hypothesis in this spec and leaves step 2b's conclusion exactly as it stands. In no branch does this change step 2b's finding or the ≥60 s / 1–5 s decision, both of which are derived from the slow path's duration.
 
+**Results (2026-09-06, 18 runs, 6 per condition).**
+
+| condition | absent | divergence age | repair (s), sorted | median |
+|---|---|---|---|---|
+| **A** short | 6 s | ~4 s | 0.021, 0.025, 51.578, 51.663, 52.281, 52.335 | 51.62 |
+| **B** long | 40 s | ~38 s | 0.735, 0.995, 1.125, 1.223, 1.288, 2.245 | 1.17 |
+| **C** long, young | 40 s | 6 s | 30.334, 30.353, 30.688, 31.096, 31.099, 31.146 | 30.89 |
+
+**Step 2b's gap claim is withdrawn.** It said: *"Nothing falls between 0.2 s and 36 s. … it is empty across 18 runs. So the mechanism is better described as two discrete paths."* **Twelve of these eighteen runs fall inside that interval.** The claim is false and the "two discrete paths" reading built on it does not survive.
+
+Why it looked true: step 2b randomized the pre-restart delay, which scrambles phase but samples the latency surface sparsely and unevenly. Eighteen draws that way populated two regions and missed the middle. The emptiness was a property of the sampling, not of Weaviate.
+
+**The pre-registered statistic is void, and this must be said plainly.** The metric above fixes a binary fast/slow split at 1 s *because the gap was believed to exist*. With the gap gone that threshold falls inside B's tight 0.735–2.245 s cluster and splits it arbitrarily — which is exactly what `path_selection.py` printed: "B_long slow 4/6", and Fisher A vs C p = 0.4545. Those numbers are artifacts of a dichotomization whose premise failed; they are reported here only so the record shows what the pre-registered analysis produced. **The continuous data below is the result.** Pre-registration protected the design from motivated reading, and it still encoded an assumption that the data destroyed. That is the lesson worth keeping.
+
+**What the continuous data shows.** Each condition is internally tight — C spans 0.81 s across six runs — and the conditions separate from each other:
+
+- **B vs C isolates divergence age at fixed absence** (both 40 s). They are **disjoint**: max(B) = 2.245 s < min(C) = 30.334 s. Exact two-sided Mann-Whitney at 6 v 6: **U = 0, p = 0.0022**, the floor for this design. **An older divergence repairs faster** — B's data had existed ~38 s before the node returned and reconciled in ~1 s; C's had existed ~6 s and took ~31 s.
+- **A vs C** — the comparison this amendment nominated as discriminating — gives p = 0.3939 and is uninformative, because A is not unimodal. Nominating it was a design error on my part: **B vs C is the clean contrast**, since it holds absence fixed and varies only age. A vs C varies absence but leaves A's own bimodality in the comparison.
+
+**A is bimodal and unexplained.** Two runs at ~0.023 s, four at ~52 s, at parameters that differ only in the ~1.6 s of jitter in realized age (3.4–5.0 s). Whatever selects between those outcomes is not captured by the two variables this design manipulates. No mechanism is named here.
+
+**A caution about the shape.** Pooled across conditions the 18 values still cluster, with empty stretches at 2.2–30.3 s and 31.1–51.6 s. That is **not** evidence of discrete mechanisms: only three parameter combinations were sampled, so the pooled distribution inherits the design's discreteness. Reading multimodality out of a pooled sample over a handful of hand-picked cells is the same error step 2b made, one level up.
+
+**Pre-registered outcome: (d).** Not (a) — C does not behave like B. Not (b) — C does not behave like A. Both quantities appear to matter, and per the interpretation plan for (d), rates are reported and no mechanism is named.
+
+**What this does not change.** The ≥60 s observation window and 1–5 s cadence from step 3 were derived from the slow path's *duration*, which is unaffected — indeed C's ~31 s and A's ~52 s sit inside the range those parameters were chosen to cover. The step 2 finding that repair is independent of divergence size across 50→5,000 is untouched; this amendment varies timing at a fixed size.
+
 ### Step 3 — the decision
 
 At a 40–50 s window: **1 s cadence gives 40–50 samples; 5 s gives 8–10.** The ≥10-sample bar is met at the cadence this project already uses on nano-db and Qdrant, at every divergence size tested, with a 50 ms probe floor two orders of magnitude below what is needed.
@@ -183,7 +212,7 @@ At a 40–50 s window: **1 s cadence gives 40–50 samples; 5 s gives 8–10.** 
 
 **The follow-on this issue was created to scope should not be built.** PR #44 recorded repair converging in "~0.3 s" and named sub-second sampling as the last prerequisite. That figure is now visible as **one draw from a bimodal distribution** — a run that restarted just before a sync tick. Three repetitions at the same divergence size give 44.7 s, 0.008 s, 0.010 s. A single observation was generalised into a bound on the experiment's design, and it was wrong in the direction that would have cost the most work: it implied machinery nobody needs.
 
-**The healing signal is a step, not a decay.** `completeness` on a diverged replica stays flat and then jumps to complete at the next sync tick. That changes what the dissociation experiment should measure: not the *shape* of a repair curve, but **whether the step happens for `completeness` and does not happen for `index_recall`** within the same window. That is an easier and more robust claim than a curve comparison, and it is unaffected by where in the sync cycle a run happens to start — provided each run is observed for longer than one full interval (≥60 s to be safe at 40–50 s observed).
+**The healing signal is a step at small divergences, and a short ramp at larger ones — re-argued 2026-09-06.** This conclusion originally leaned on the "two discrete paths" reading, which step 2c withdrew, so it is restated here from the trajectory data alone, which is independent of that reading. In the committed trajectories the victim sits at 0 held objects and then completes over a span of **8–16 ms at 50 objects, 106–167 ms at 500, but 5.8–6.3 s at 5,000**. So at 50–500 objects the transition is a step at any cadence this project can achieve; at 5,000 it is a ramp that a 1 s cadence would resolve into roughly **5–6 points**. The step-versus-curve question is therefore **decided by divergence size**, not settled in general — an experiment wanting a curve should use 5,000, one wanting an unambiguous step should use 50–500. Either way the robust comparison is **whether the transition happens for `completeness` and does not for `index_recall`** within the same window, observed for ≥60 s so the run outlasts the wait that precedes it.
 
 **What is not established.** The mechanism behind the two paths — neither the fast catch-up nor the slow sync was observed in Weaviate itself, only their effect on a probe. The slow path's ~36–50 s spread is not resolved into a period; that would need many more restarts and a way to observe the scheduler. Why a longer pre-delay makes the slow path likelier (10.4 s vs 32.3 s mean) is unexplained and is the obvious next question if this ever matters. Whether divergence size matters *above* 5,000 — the 20,000 cell failed on the probe's URL ceiling, not on repair. Whether repair behaves differently after a long outage: writing 20,000 objects took 48.6 s, so big divergences are also long outages, and the two are confounded by construction here. n = 2–3 per cell, one host, one build.
 
