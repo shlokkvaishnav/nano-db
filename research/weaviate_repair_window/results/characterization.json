@@ -1,0 +1,85 @@
+{
+  "probe_cost": {
+    "10": {
+      "median_ms": 31.7,
+      "min_ms": 15.5,
+      "max_ms": 796.4
+    },
+    "100": {
+      "median_ms": 54.0,
+      "min_ms": 17.2,
+      "max_ms": 419.4
+    },
+    "1000": {
+      "median_ms": 40.4,
+      "min_ms": 34.6,
+      "max_ms": 139.9
+    },
+    "10000": {
+      "median_ms": 451.0,
+      "min_ms": 215.5,
+      "max_ms": 1152.8
+    }
+  },
+  "repairs": [
+    {
+      "size": 50,
+      "seed": 50,
+      "write_s": 0.2,
+      "peer_had": 50,
+      "first_answer_n": 0,
+      "repair_s": 33.9,
+      "samples_in_window": 1957,
+      "converged": true,
+      "trajectory_head": [
+        [
+          0.0,
+          0
+        ],
+        [
+          0.019,
+          0
+        ],
+        [
+          0.046,
+          0
+        ],
+        [
+          0.063,
+          0
+        ],
+        [
+          0.077,
+          0
+        ],
+        [
+          0.088,
+          0
+        ]
+      ],
+      "trajectory_tail": [
+        [
+          33.65,
+          31
+        ],
+        [
+          33.751,
+          41
+        ],
+        [
+          33.9,
+          50
+        ]
+      ]
+    }
+  ],
+  "control": {
+    "ok": true,
+    "complete_on_first_answer": true,
+    "n": 50
+  },
+  "decision": {
+    "probe_floor_ms_at_100_ids": 54.0,
+    "smallest_size_with_10_samples": 50
+  }
+}

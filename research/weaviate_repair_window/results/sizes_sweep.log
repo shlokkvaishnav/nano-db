@@ -1,0 +1,12 @@
+size sweep: does repair outlast node startup once the divergence is big?
+first_answer_n == size  =>  repair finished during startup (unobservable)
+
+  size     50 rep 0: write 0.1s  first_answer 0/50  repair 44.725s  samples 8532  window observable
+  size     50 rep 1: write 0.0s  first_answer 0/50  repair 0.008s  samples 2  window observable
+  size     50 rep 2: write 0.0s  first_answer 0/50  repair 0.01s  samples 2  window observable
+  size    500 rep 0: write 0.3s  first_answer 0/500  repair 0.169s  samples 4  window observable
+  size    500 rep 1: write 0.6s  first_answer 0/500  repair 50.234s  samples 3701  window observable
+  size    500 rep 2: write 0.5s  first_answer 0/500  repair 50.047s  samples 4313  window observable
+  size   5000 rep 0: write 7.6s  first_answer 140/5000  repair 38.286s  samples 17  window observable
+  size   5000 rep 1: write 9.0s  first_answer 13/5000  repair 40.787s  samples 22  window observable
+  size  20000 rep 0: write 48.6s  first_answer None/20000  repair Nones  samples None  window observable

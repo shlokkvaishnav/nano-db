@@ -36,3 +36,4 @@ research/qdrant_chaos_loop_timeout/*.log
 research/qdrant_chaos_loop_timeout/*.err
 research/weaviate_probe/weaviate_run/
 research/weaviate_probe/*.log
+research/weaviate_repair_window/*.log
