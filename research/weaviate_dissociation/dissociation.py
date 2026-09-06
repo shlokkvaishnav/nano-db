@@ -235,6 +235,46 @@ def recovery_with_censoring(series):
     return out
 
 
+def clear_objects(dry, node=0):
+    """Empty the class WITHOUT touching the schema.
+
+    Amendment 2b. Amendment 2 cleared the corpus by deleting and recreating the
+    class, which is wrong twice over on a replicated cluster:
+
+      * recreating the class MINTS A NEW SHARD, so any shard name already read
+        goes stale (Amendment 2a); and
+      * class creation is a Raft operation. It needs a leader and it re-places
+        the shard's replicas -- observed placing the new shard on only 2 of 3
+        nodes, after which every write at consistency ALL failed with "cannot
+        reach enough replicas". The isolation probe stops two of three nodes, so
+        a reset between runs can also land while there is no quorum at all
+        ("leader not found"), which is how the previous attempt bricked the
+        cluster's Raft state.
+
+    Deleting the OBJECTS is a data operation: the shard keeps its name, the
+    replica placement is untouched, and no leader election is involved.
+    """
+    if dry:
+        log("  [dry] batch-delete all objects (corpus isolation)")
+        return True
+    body = {"match": {"class": t.CLASS_NAME,
+                      "where": {"path": ["vid"], "operator": "Like",
+                                "valueText": "*"}},
+            "output": "minimal"}
+    st, resp = t.http_request(t.http_port(node), "DELETE", "/v1/batch/objects",
+                              body, timeout=300)
+    if st != 200:
+        log(f"  FAILED to clear objects: {st} {resp}")
+        return False
+    time.sleep(3)
+    n = class_count(node)
+    if n:
+        log(f"  FAILED to clear objects: {n} still present")
+        return False
+    log("  class emptied; shard and replica placement untouched")
+    return True
+
+
 def reset_class(dry):
     """Delete and recreate the class, so it holds ONLY this run's corpus.
 
@@ -311,8 +351,8 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
     log("")
     # Amendment 2: the class is shared scratch and was never cleared, so the
     # ANN searched a superset of the ground-truth corpus. Reset per run.
-    if not reset_class(dry):
-        rec["aborted"] = "class reset failed"
+    if not clear_objects(dry):
+        rec["aborted"] = "clearing the corpus failed"
         return rec
     # Amendment 2a: recreating the class MINTS A NEW SHARD, so a shard name read
     # once at startup is stale for every run after the first reset, and every
