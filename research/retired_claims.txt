@@ -1,0 +1,28 @@
+# Retired claims: phrases that must not appear UNQUALIFIED anywhere in the repo.
+#
+# Why this file exists. When a claim is withdrawn, the withdrawal is written in
+# the study that withdrew it -- and copies of the claim survive elsewhere,
+# because a consequence note names the files someone thought of. #48's note
+# named two files and four sites survived for a day, still telling readers that
+# sub-second sampling was "the only remaining prerequisite".
+#
+# So a retirement is recorded here as a SEARCHABLE STRING, not as a file list.
+# `check_research.py` fails if any line containing one of these phrases does not
+# also carry a withdrawal marker (withdrawn, WITHDRAWN, Corrected, superseded,
+# retired, struck, ~~strikethrough~~, "must not", "do not claim", or a
+# quoted-and-refuted context).
+#
+# Format: one phrase per line, then `::`, then where it was retired.
+# Matching is case-insensitive and substring-based, so keep phrases distinctive
+# enough not to fire on unrelated prose. Add a phrase in the SAME PR that
+# retires the claim -- that is the rule GIT_WORKFLOW.md now states.
+
+must beat 0.3s :: #48 / PR #51 -- repair is timing-determined, ms to ~52 s; 1-5 s cadence suffices
+must sample faster than that :: #48 / PR #51 -- same withdrawal
+the only remaining prerequisite :: #48 / PR #51 -- sub-second sampling was never a prerequisite
+two discrete paths :: #48 step 2c / PR #51 -- 12 of 18 runs land inside the "empty" interval
+nothing falls between 0.2 :: #48 step 2c / PR #51 -- the gap was a sampling artifact
+uniform-ish over an interval :: #48 step 2b / PR #49 -- refuted by the randomized-delay test
+older divergence repairs faster :: #48 step 2c review / PR #51 -- withdrawn as an explanation; from the write, B and C are 38.9 s vs 36.9 s
+Qdrant's ANN graph resists chaos :: 2026-09-04 / PR #31 -- measured on an indexed corpus, it does diverge at the replica level
+first run fastest :: #48 / PR #51 -- the first run is among the fastest; the minimum is rep 1
