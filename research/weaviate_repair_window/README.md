@@ -12,7 +12,11 @@ PR #44 measured repair at **~0.3 s** once and named "sub-second sampling" as the
 | 500 | 0.169, 50.234, 50.047 |
 | 5,000 | 38.286, 40.787 |
 
-Every observation is either **sub-0.2 s** or **38–50 s**, and a **100× increase in divergence does not increase repair time** — the signature of a fixed periodic sync where the wait is time-until-the-next-tick. (Consistent with, not established: the scheduler was not observed, only its effect.)
+Every observation is either **sub-0.2 s** or **36–50 s**, and a **100× increase in divergence does not increase repair time**.
+
+**Is it "remembering" (warming up), or timing?** Separated directly: 10 repetitions at one size with a **randomized 0–50 s delay** before each restart, which scrambles timing while leaving repetition order intact. correlation(repair, repetition index) = **+0.373** — warming predicts strongly negative — and the first run was among the fastest. **Warming refuted; timing decides it** (fast runs' mean pre-delay 10.4 s vs slow runs' 32.3 s).
+
+**And it is not a countdown.** Pooling all 18 observations, **nothing falls between 0.2 s and 36 s**. A uniform wait-for-next-tick would fill that interval. So: **two discrete paths** — an immediate catch-up that either captures the restarting node or does not, and a ~36–50 s wait when it does not. An earlier draft of the spec called the wait "uniform-ish over an interval"; that half is withdrawn.
 
 **Consequences.**
 
