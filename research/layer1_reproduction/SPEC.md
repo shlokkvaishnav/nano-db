@@ -75,7 +75,7 @@ Outcome (a) or (b) updates `RESULTS.md`, the README's Raw data status section, a
 ## Amendment 1 (2026-09-06, before the sweep): the experiment runs off the bind mount
 
 Written after `deps`, `build` and `corpus` and **before any sweep run**, so no
-result influenced it. Two defects in the harness, both found by trying to run it.
+result influenced it. Three defects in the harness, all found by trying to run it.
 
 ### (a) The harness could not run on the only host it exists for
 
@@ -155,6 +155,44 @@ the mount, since that is where the git directory lives.
 The resumability check moved into the container with it: it previously tested a
 host path that runs no longer write to, so every resume would have silently
 redone the entire sweep.
+
+### (c) "Exactly CI's toolchain list" was not enough, and a whole failed sweep exited 0
+
+With (a) and (b) fixed, the sweep ran — and **all ten cells produced no data**.
+Every one died in `probe.ensure_stubs()`:
+
+```
+RuntimeError: grpcio and grpcio-tools are required for the replica probe.
+(import failed: No module named 'grpc')
+```
+
+The apt list carried a comment that it was *"exactly CI's toolchain list
+(`.github/workflows/ci.yml`), so a build that works in CI works here"*. That
+reasoning is sound for the build and wrong for the sweep, structurally rather
+than accidentally: **CI builds and runs `ctest`; it never runs
+`run_experiment.py`.** So nothing in CI ever imports `grpc`, and CI's list has no
+reason to carry the Python gRPC bindings. Inheriting it inherited that gap.
+
+Fixed by adding `python3-grpcio` and `python3-grpc-tools` — apt rather than pip,
+since 24.04 marks the system environment externally managed. Verified: stub
+generation from `proto/nanodb_cluster.proto` succeeds, and a 20 s smoke run
+produced 24 samples and a well-formed `samples.csv`.
+
+**The worse half of this defect is that the stage exited 0.** Each cell's
+`run_experiment.py` call is deliberately `check=False`, so that one bad cell does
+not cost the others — that part is right. But the stage then reported success
+after ten consecutive failures, printing `NO_OUTPUT_..._run_failed` ten times
+into a log nobody had a reason to read. Had the analyse stage run, it would have
+been over an empty sweep.
+
+This is the exact silent-failure shape #26, #38, #46 and #48's 20,000-id probe
+were each caught by, and it appeared here in the harness whose own README cites
+that pattern as the reason `verify_corpus.py` exists. Tolerating each failure
+individually is correct; reporting the aggregate as success is not. The sweep now
+counts produced / skipped / failed cells, prints the tally, and exits non-zero if
+any cell produced no `samples.csv`. `deps` additionally asserts `import grpc,
+grpc_tools.protoc` immediately, so a missing binding fails at the start rather
+than ten cells later.
 
 ### What this does not change, and what it costs
 

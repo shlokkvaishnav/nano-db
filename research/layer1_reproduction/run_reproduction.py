@@ -51,11 +51,21 @@ CONTAINER = "rrd-layer1"
 MOUNT = "/repo"
 WORK = "/work"
 
-# Exactly CI's toolchain list (.github/workflows/ci.yml), so a build that works
-# in CI works here. Divergence between the two would be its own confound.
+# CI's toolchain list (.github/workflows/ci.yml), so a build that works in CI
+# works here -- PLUS the runtime the sweep needs and CI does not.
+#
+# Amendment 1(c): "exactly CI's list" was not enough, and the reason is
+# structural rather than an oversight. CI builds and runs ctest; it never runs
+# run_experiment.py. So nothing in CI ever imports `grpc`, and its list has no
+# reason to carry the Python gRPC bindings. Without them every sweep cell dies
+# in probe.ensure_stubs() and produces no samples.csv.
+#
+# python3-grpcio / python3-grpc-tools rather than pip: 24.04 marks the system
+# environment externally managed, and pip would need --break-system-packages.
 APT = ("cmake g++ libomp-dev protobuf-compiler protobuf-compiler-grpc "
        "libprotobuf-dev libgrpc++-dev libgrpc-dev pkg-config git python3 "
-       "python3-pip python3-numpy curl ca-certificates")
+       "python3-pip python3-numpy curl ca-certificates "
+       "python3-grpcio python3-grpc-tools rsync")
 
 CMAKE = ("cmake -B build -DCMAKE_BUILD_TYPE=Release "
          "-DNANODB_BUILD_SERVER=ON -DNANODB_BUILD_CLUSTER=ON")
@@ -140,7 +150,13 @@ def stage_deps(dry):
     print("\n=== deps ===")
     ensure_container(dry)
     indocker("apt-get update -qq && DEBIAN_FRONTEND=noninteractive "
-             f"apt-get install -y -qq {APT} rsync", dry, cwd="/")
+             f"apt-get install -y -qq {APT}", dry, cwd="/")
+    # Fail here, loudly, rather than 10 sweep cells later. The sweep imports
+    # grpc inside run_experiment.py, whose failure this harness deliberately
+    # tolerates per-cell -- so a missing binding would otherwise surface as ten
+    # empty runs and a zero exit code.
+    indocker("python3 -c 'import grpc, grpc_tools.protoc' && "
+             "echo 'grpc bindings present'", dry, cwd="/")
     # httplib is required by coordinator_main.cpp and server.cpp; pybind11 was
     # removed from .gitmodules, so this initialises exactly one submodule.
     # Done on the MOUNT, because that is where .gitmodules and the git dir live.
@@ -213,6 +229,7 @@ def stage_sweep(dry):
     corpus. Nothing here overrides a protocol parameter.
     """
     print("\n=== sweep: 5 seeds x baseline/chaos, protocol UNCHANGED ===")
+    produced = failed = skipped = 0
     for seed in SEEDS:
         for cond, flag, dur in (("baseline", "--no-chaos", 180),
                                 ("chaos", "", 300)):
@@ -222,6 +239,7 @@ def stage_sweep(dry):
             # every resume would redo the whole sweep.
             if not dry and done_in_work(dest):
                 print(f"  skip {dest} (exists)")
+                skipped += 1
                 continue
             indocker(f"rm -rf {SRC_RESULTS}", dry, check=False)
             cmd = (f"python3 research/replica_recall/run_experiment.py "
@@ -236,9 +254,29 @@ def stage_sweep(dry):
                      f"mv {SRC_RESULTS} {dest}; else "
                      f"echo NO_OUTPUT_seed{seed}_{cond}_run_failed; fi",
                      dry, check=False)
+            if not dry:
+                if done_in_work(dest):
+                    produced += 1
+                else:
+                    failed += 1
+                    print(f"  !! {dest} produced no samples.csv")
             # After each cell, not only at the end: a sweep interrupted at cell 7
             # should not lose the six runs before it.
             sync_results_back(dry)
+
+    if not dry:
+        print(f"\n  sweep cells: {produced} produced, {skipped} skipped "
+              f"(already done), {failed} FAILED")
+        if failed:
+            # A sweep where every cell died used to exit 0, because each run is
+            # tolerated individually so that one bad cell does not lose the
+            # others. Tolerating each failure separately is right; reporting the
+            # total as success is not -- it is the silent-failure shape #26,
+            # #38, #46 and #48 were each caught by.
+            raise SystemExit(
+                f"{failed} of {produced + failed} sweep cells produced no data. "
+                "The analysis would be over a partial sweep; fix the cause and "
+                "re-run (completed cells are skipped).")
 
 
 def stage_analyse(dry):
