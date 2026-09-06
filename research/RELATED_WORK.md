@@ -277,6 +277,14 @@ can diverge." What no source found does:
    the cluster mean of the same runs. The practitioner sources name the metric
    and do not report it.
 
+   Same caution as novelty item 1: the p = 0.31 is a null at n = 5, so it is
+   consistent with dilution rather than proof of it. The claim that averaging
+   hides the effect rests on the concentration evidence — killed node worst in
+   4 of 5 runs, up to 5 points on that replica against ~1.2 on the mean — and
+   should always be stated with it. A reviewer who reads "the mean was a null,
+   therefore averaging hides it" will correctly object that an underpowered null
+   shows nothing, and they would be right about that step of the argument.
+
 **Cite and distinguish, do not claim:** the stratified-recall principle, and the
 observation that replicas drift. Claim the identity argument, the failure
 attribution, and the measurement.
@@ -305,13 +313,23 @@ claims about the same result.
 
 The current ranking, strongest first:
 
-1. **The measurement unit is the finding: replica-level separation with a
-   cluster-level null on the same runs.** On Qdrant, worst-replica
+1. **The measurement unit is the finding: replica-level separation, with the
+   effect demonstrably concentrated on one replica.** On Qdrant, worst-replica
    `index_recall` under chaos is 0.978 vs 0.990 at baseline, every seed
    separated, exact p = 0.0079 — while the **mean over the same six replicas
-   does not separate, p = 0.31**. Both are correct. A monitor that averages is
-   structurally blind to this. See §7 for what bounds that claim, because the
-   general principle is *not* new.
+   does not separate, p = 0.31**.
+
+   **The null is not the evidence, and this must be stated carefully.** At n = 5
+   on a metric with ~1% of headroom, a null is also what low power looks like,
+   so "the mean does not separate" does not by itself establish "averaging
+   destroys the signal." What carries the claim is the **concentration**: the
+   killed node is the worst replica in **4 of 5 runs**, and the loss is ~1.2
+   points on the seed mean against **up to 5 points on that one replica** — a
+   localized effect diluted sixfold, which is a mechanism for why a mean would
+   hide it rather than merely a failure to reject. Claim the conjunction; the
+   cluster-level null is *consistent with* dilution, not proof of it.
+
+   See §7 for what bounds this, because the general principle is *not* new.
 2. **The three-way decomposition** — `index_recall` (graph quality, data held
    constant) vs `completeness` (data content, no search) vs `e2e_recall` (client
    experience). Vendor blogs gesture at "index quality vs retrieval quality";
