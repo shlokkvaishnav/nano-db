@@ -26,6 +26,19 @@ A small `experiment/*` branch (e.g. re-running the existing sweep at a different
 
 If a change touches any of: model/index configuration, replication behavior, the fault model, the dataset, the query distribution, the evaluation metric, the statistical procedure, or the experimental protocol — put it on its own branch. Mixing two of these in one branch makes "what caused the change" unanswerable, which defeats the point of running the experiment at all.
 
+**Formatting and research must never share a branch.** Process, repo-hygiene and
+documentation-structure changes go straight to `main`; research goes through a
+PR. That rule already existed — what it lacked was the corollary that the two
+cannot ride together, because separating them afterwards is manual surgery.
+
+Doing it once cost: cherry-picking two commits onto `main`, resetting the
+branch, rebasing it, force-pushing, resolving three conflicts in the experiment
+index, and rewriting the PR description — all because a README rewrite and a
+step-2c result shared a branch. None of that work advanced either change.
+
+The test to apply before committing: *would this line belong in the PR
+description of an experiment?* A deleted Grafana dashboard would not.
+
 ## Lifecycle
 
 1. Research question → 2. Literature check → 3. Hypothesis → 4. Experimental design → 5. Implementation → 6. Validation → 7. Experiment → 8. Analysis → 9. Interpretation → 10. **Decision**
@@ -94,6 +107,26 @@ A tag means "at this commit, `main` is a coherent, reproducible state that suppo
 ## Decision log
 
 Significant research decisions — why an experiment was designed a certain way, why a baseline was chosen, why a metric changed, why a hypothesis was rejected, why a branch was merged or archived — are recorded in [`DECISION_LOG.md`](DECISION_LOG.md). The repository should not depend on anyone's memory of why a call was made.
+
+### Retiring a claim: write a string, not a file list
+
+When a result withdraws a claim that has already reached `main`, the Decision's
+consequences must name **the searchable phrase**, not the files someone happened
+to think of — and that phrase goes into
+[`retired_claims.txt`](retired_claims.txt) **in the same PR**.
+
+Write: *the phrase `must beat 0.3s` must not appear unqualified anywhere.*
+Not: *correct the ~0.3 s claim in these two files.*
+
+The second form is what #48 wrote, and four other sites survived the withdrawal
+for a day — still telling readers that sub-second sampling was "the only
+remaining prerequisite" — because a consequence note is only as complete as the
+grep behind it. `check_research.py` enforces the first form: any line containing
+a retired phrase must carry a withdrawal marker within a few lines, or CI fails.
+
+The original text still stays in place, struck or quoted where it is withdrawn.
+This changes how the *consequence* is recorded, not how the correction is
+written.
 
 ## What this is not
 

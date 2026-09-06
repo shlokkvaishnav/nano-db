@@ -21,6 +21,12 @@ jobs:
       - name: research/README.md index matches the tree
         run: python3 research/check_index.py
 
+      - name: the mechanical checks behave as specified
+        run: python3 research/test_check_research.py
+
+      - name: no mechanical drift in the research record
+        run: python3 research/check_research.py
+
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10

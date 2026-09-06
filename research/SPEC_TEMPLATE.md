@@ -40,6 +40,24 @@ How will this be tested? System(s), topology, fault model, dataset, query worklo
 
 What is actually measured, and which of those measurements decide the outcome.
 
+**Register the estimand and the comparison — not a threshold applied to them.**
+"Latency distribution by condition, compared by an exact rank test" survives its
+assumptions failing. "Proportion of runs above 1 s" does not: if the structure
+that justified the 1 s cut turns out not to exist, the statistic is computed on
+a partition with no basis and reports a number that means nothing.
+
+That is not hypothetical. #48 step 2c pre-registered a binary fast/slow split at
+1 s, justified by a 0.2–36 s gap observed in step 2b. Step 2c then falsified the
+gap, the threshold landed inside a tight 0.735–2.245 s cluster, and the
+pre-registered test dutifully reported p = 0.4545 on a meaningless dichotomy.
+The pre-registration was honoured exactly as written and was worthless, because
+it had locked in an analysis choice that depended on a belief the experiment
+was about to destroy.
+
+If a threshold is genuinely needed, **register the rule that derives it from the
+data** ("the tie floor is 0.5/(k·nq), computed per run") rather than the value.
+A derived threshold moves when the data says so; a fixed one goes void.
+
 ## Instrument characterization
 
 *(Required for any confirmatory sweep. Fill in from existing artifacts before

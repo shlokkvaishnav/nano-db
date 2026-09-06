@@ -162,6 +162,34 @@ Comments, doesn't push code, doesn't merge.
    how good the code is; a script can catch that where a reader will not.
    (`gh pr diff` has no `--name-status`; the first version of this step
    said it did, and failed the first time it was run, on #29.)
+1b. **Recompute every headline number from the raw committed data, without
+   the branch's own analyser.** Load the `results/*.json` or `samples.csv`
+   directly and re-derive each figure the PR leads with. This was already how
+   every past overstatement got caught — #25's review recomputed
+   185.3 / 128.3 / 148.7 and matched exactly, #37's caught a 0.003 dip
+   described as 0.001 — but it was convention, not instruction.
+
+   Its value is symmetric. On #51 it found nothing wrong across six claims,
+   and that was worth having: with the arithmetic ruled out, the review could
+   spend itself on interpretation, which is where the actual defect was.
+
+1c. **Look for a derived quantity under which the effect disappears.** Ask:
+   *is there a different origin, unit, or normalisation that would collapse
+   this?* Different denominator, different zero point, a rate instead of a
+   count, time measured from a different event.
+
+   This is the step that caught the subtlest error of the session and the one
+   most worth codifying. #51's headline — two conditions separating at
+   p = 0.0022, disjoint, exact floor — survived full recomputation. It fell
+   anyway: `repair_s` was timed from the node's restart while the conditions
+   differed in when the *write* happened, and `age + repair` turned a 30×
+   separation into ~5%. Three rounds of the author's own checking had missed
+   it, because every check verified the number rather than the frame.
+
+   The question is cheap and takes a minute. Most of the time the answer is
+   no, and that is a real strengthening of the claim, worth saying in the
+   review.
+
 2. Read the issue, the PR template's filled-in answers, and the diff, as if
    seeing them for the first time — see "Guarding role separation," below,
    for why that matters more now than it did with three sessions.
@@ -260,6 +288,27 @@ starts:
    earlier version used `--assignee ""`, which in current `gh` returns
    nothing rather than "unassigned" — the query silently never fired, found
    on #30 when the filed issue did not show up.)
+3b. Else, **ask what can be answered from data already committed**, before
+   proposing anything that needs new compute. Concretely: is there a column,
+   metric, or artifact in `research/*/results*/` that no study has ever
+   analysed? If so, file it and play **Implementer** on it.
+
+   This query exists because nothing in queries 0–5 looks at the *data*; they
+   all look at issues and PRs, so committed-but-unexamined evidence is
+   invisible to the loop no matter how long it runs.
+
+   The case that produced it: `loo_agreement` and `shard_agreement` are
+   written into every `samples.csv` this project produces, including all the
+   Qdrant studies — 51 runs, 3,594 populated rows. They sat unscored through
+   the entire Qdrant programme. Scoring them (#52) cost **zero compute** and
+   produced both a replication of the detector on a second system *and* a
+   significant negative: at chance on graph quality, the project's own
+   headline axis.
+
+   A cheap analysis of existing data outranks a new sweep, because its
+   evidence-per-unit-compute is unbounded. Check this before query 4 proposes
+   an experiment.
+
 4. Else, **`gh issue list --label stage:proposed`**'s count is below
    threshold N (default N = 3 — enough runway that the implementer role
    never stalls waiting on the researcher role's next tick, small enough
