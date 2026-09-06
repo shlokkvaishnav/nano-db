@@ -137,6 +137,42 @@ They were separated by repeating a fixed divergence (50 objects) **10 times with
 
 **A claim in an earlier draft of this spec is withdrawn on this evidence:** it described the wait as "time-until-the-next-tick, uniform-ish over an interval of roughly 40–50 s". The uniform-interval half is falsified by the gap. The timing-determined half survives.
 
+
+### Step 2c — what selects the path? (amendment, 2026-09-06, pre-registered before the run)
+
+Step 2b's own limitations section named this as the next question: *"Why a longer pre-delay makes the slow path likelier (10.4 s vs 32.3 s mean) is unexplained."* Re-analysing the step 2b data (`analyze_path_selection.py`, no new runs) shows the association is stronger than that sentence suggests:
+
+| | pre-delays (s) | mean |
+|---|---|---|
+| fast (≤1 s), n=6 | 4.3, 6.7, 7.7, 11.7, 13.0, 19.2 | 10.4 |
+| slow (>1 s), n=4 | 16.4, 29.2, 39.4, 44.3 | 32.3 |
+
+Exact two-sided Mann-Whitney U = 23 of a possible 24, **p = 0.0190** (4 of 210 permutations; the floor at n=4 vs 6 is 0.0095). The groups are nearly separated: a single threshold at ~13–16 s misclassifies **1 of 10** runs, and the only overlap is fast-at-19.2 s against slow-at-16.4 s.
+
+This is post-hoc on data collected to answer a different question, so it is a hypothesis, not a result. It is worth one confirmatory run because it converts "timing" from a placeholder into something mechanical and checkable.
+
+**Hypothesis.** Path selection is decided by **how long the victim is absent before it restarts**, not by the phase at which the restart lands. A short absence takes the fast path; a long absence takes the slow one.
+
+**The confound this design exists to break.** In step 2b the delay was inserted *between the write and the restart*, so a longer delay made the node absent longer **and** made the divergence older by exactly the same interval. Those are one quantity in that data and cannot be told apart by collecting more of it. Three conditions separate them, at a fixed divergence of 50 objects:
+
+| | victim absent | divergence age at restart |
+|---|---|---|
+| **A** short | ~6 s | ~6 s |
+| **B** long | ~40 s | ~40 s |
+| **C** long, young | ~40 s | ~6 s (objects written in the last ~6 s of the outage) |
+
+C is the discriminating cell. If **absence** selects the path, C behaves like B (slow). If **divergence age** selects it, C behaves like A (fast). Conditions are interleaved in randomized order so repetition index cannot align with condition.
+
+**Metric.** Proportion of runs taking the slow path (>1 s) per condition, 6 repetitions each. The 0.2 s / 36 s gap established in step 2b makes this classification unambiguous; any run landing inside the gap is reported separately and weakens the two-path reading.
+
+**Pre-registered outcomes.**
+- **(a) absence decides** — A fast, B and C slow. Fisher exact on A vs C, complete separation at 6 v 6 gives p = 0.0022.
+- **(b) divergence age decides** — A and C fast, B slow.
+- **(c) neither** — every condition mixed at similar rates; then step 2b's association was a small-n accident and "phase" stands as the honest description.
+- **(d) mixed within a condition but at different rates** — both quantities contribute, or the threshold sits inside the range sampled; report rates and do not name a mechanism.
+
+**Interpretation plan.** (a) or (b) names the controlled variable and the dissociation experiment can *choose* its path rather than accept whichever it draws — worth having, because a fast-path run has no observable healing window at all. (c) retracts the step 2c hypothesis in this spec and leaves step 2b's conclusion exactly as it stands. In no branch does this change step 2b's finding or the ≥60 s / 1–5 s decision, both of which are derived from the slow path's duration.
+
 ### Step 3 — the decision
 
 At a 40–50 s window: **1 s cadence gives 40–50 samples; 5 s gives 8–10.** The ≥10-sample bar is met at the cadence this project already uses on nano-db and Qdrant, at every divergence size tested, with a 50 ms probe floor two orders of magnitude below what is needed.
