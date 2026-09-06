@@ -77,49 +77,55 @@ This is a **replication of a pre-specified metric on independent data**, not a n
 
 51 committed runs, 4,644 sample rows, no new compute. Hit rate is the per-run mean over scoreable runs; chance is 1/3 throughout.
 
+**Condition is read from each run's own `run_meta.json` (`chaos`, `quiesce`), not from its directory name** — review round 1 found that a substring match filed five `..._nochaos_...` runs into the chaos group, because `"chaos" in "nochaos"`. All numbers below are post-fix.
+
 | truth axis | condition | runs | scoreable | hit rate | groups | tie-excluded |
 |---|---|---|---|---|---|---|
-| `e2e_recall` | baseline | 15 | 12 | **0.586** | 194 | 51.5% |
-| | chaos | 16 | 13 | **0.876** | 112 | 52.8% |
-| | quiesce | 15 | 12 | 0.589 | 206 | 34.2% |
-| `index_recall` | baseline | 15 | 15 | **0.648** | 280 | 30.0% |
-| | chaos | 16 | 13 | **0.469** | 115 | 50.4% |
-| | quiesce | 15 | 15 | 0.586 | 240 | 27.3% |
-| `completeness` | baseline | 15 | **0** | — | 0 | **100.0%** |
-| | chaos | 16 | 8 | **0.929** | 65 | 69.6% |
-| | quiesce | 15 | 3 | 0.725 | 25 | 81.8% |
+| `e2e_recall` | baseline | 22 | 16 | **0.635** | 229 | 57.3% |
+| | chaos | 10 | 9 | **0.908** | 80 | 25.0% |
+| | quiesce | 19 | 13 | 0.620 | 214 | 58.0% |
+| `index_recall` | baseline | 22 | 20 | **0.670** | 323 | 40.4% |
+| | chaos | 10 | 9 | **0.348** | 84 | 21.4% |
+| | quiesce | 19 | 16 | 0.594 | 247 | 53.9% |
+| `completeness` | baseline | 22 | **0** | — | 0 | **100.0%** |
+| | chaos | 10 | 8 | **0.929** | 65 | 35.7% |
+| | quiesce | 19 | 3 | 0.725 | 25 | 88.1% |
 
 The pre-registered control comparison, per-run hit rate as the unit:
 
-| axis | baseline | chaos | U | p | method |
+| axis | baseline | chaos | U | p | |
 |---|---|---|---|---|---|
-| `e2e_recall` | 0.586 (n=12) | **0.876** (n=13) | 137.0 | **0.0007** | permutation, 200k |
-| `index_recall` | 0.648 (n=15) | 0.469 (n=13) | 56.5 | 0.0594 | permutation, 200k |
+| `e2e_recall` | 0.635 (n=16) | **0.908** (n=9) | 123.0 | **0.0023** | separates |
+| `index_recall` | 0.670 (n=20) | **0.348** (n=9) | 13.0 | **0.0001** | separates, **wrong direction** |
 | `completeness` | — (n=0) | 0.929 (n=8) | — | — | no control available |
 
-**A note on the test.** This project's other studies enumerate every split exactly, because at 5v5 there are 252. Here the groups are 12–15 runs and C(25,12) is 5.2 million, so a seeded permutation test (200,000 resamples, seed 20260906) is used and the output labels which method produced each p. Nothing here is claimed below p = 5e-6, the resolution floor.
+**A note on the test.** This project's other studies enumerate every split exactly, because at 5v5 there are 252. Here the groups are 9–20 runs and C(25,12) is 5.2 million, so a seeded permutation test (200,000 resamples, seed 20260906) is used and the output labels which method produced each p. Nothing is claimed below p = 5e-6, the resolution floor.
 
 ## Interpretation
 
-**The detector replicates on a second system for end-to-end search quality — outcome (a).** Chaos runs score 0.876 against a 0.586 no-chaos control, p = 0.0007. The 0.876 is strikingly close to nano-db's 0.87, though that agreement should not be over-read: the two systems' runs differ in corpus, topology, chaos mechanism and duration, and the comparison is context, not a test.
+**The detector replicates on a second system for end-to-end search quality — outcome (a).** Chaos runs score 0.908 against a 0.635 no-chaos control, p = 0.0023.
 
-**The baseline is doing exactly the work it was pre-registered to do.** At 0.586 against a 0.333 chance line it confirms the artifact `_detection_stats()`'s docstring warns about — a healthy cluster scores well above chance purely from near-ties surviving the exclusion rule. Anyone reading the chaos number against *chance* rather than against *baseline* would overstate the detector by a wide margin. Against baseline the effect is smaller and still clearly present.
+**The baseline is doing exactly the work it was pre-registered to do.** At 0.635 against a 0.333 chance line it confirms the artifact `_detection_stats()`'s docstring warns about: a healthy cluster scores well above chance purely from near-ties surviving the exclusion rule. Reading the chaos number against *chance* rather than against *baseline* would overstate the detector by a wide margin.
 
-**And it fails on graph quality — outcome (iii), the important negative.** Against `index_recall` the chaos hit rate is **0.469, below its own 0.648 baseline**, and the comparison does not separate (p = 0.0594) with the point estimate pointing the wrong way. The detector does not find the graph-degraded replica.
+**On graph quality the detector collapses to chance — outcome (iii), and this is the more important result.** Against `index_recall`, chaos runs score **0.348** — the chance line is 0.333 — against a 0.670 baseline, and the comparison separates at **p = 0.0001 in the wrong direction**. This is not a weak null. It is a significant, sizeable *drop to chance* in exactly the condition where the detector is supposed to work.
 
-That result is not a curiosity — **it is a limit on the project's own headline.** The established Qdrant finding is replica-level `index_recall` divergence (p = 0.0079, cluster mean null at p = 0.31). The ground-truth-free detector, applied to the same runs, does **not** identify the replica that finding is about. So Layer 3 does not currently cover Layer 1's strongest result.
+**Why that matters here specifically.** The established Qdrant finding is replica-level `index_recall` divergence (p = 0.0079, cluster mean a null at p = 0.31). The ground-truth-free detector, applied to those same runs, is **at chance** at identifying the replica that finding is about. Layer 3 does not cover Layer 1's strongest result.
 
-The mechanism is plausible and worth stating as a hypothesis rather than a conclusion: `loo_agreement` measures how far a replica's *returned results* diverge from its peers'. A replica missing objects returns visibly different results and is easy to flag. A replica holding all the data with a slightly worse graph returns *nearly the same* results — that is precisely what "approximation converts damage into silence" means, and the detector is subject to it too. On the chaos runs the replica the detector flags and the replica with the worst `index_recall` are frequently not the same one.
+The mechanism is worth stating as a hypothesis, not a conclusion: `loo_agreement` measures how far a replica's *returned results* diverge from its peers'. A replica missing objects returns visibly different results and is easy to flag — hence 0.908 on `e2e_recall` and 0.929 on `completeness`. A replica holding all the data with a slightly worse graph returns **nearly the same results**, which is precisely what "approximation converts damage into silence" means. **The detector is subject to the very effect this project exists to study**, and that is a sharper statement of the problem than the project has had so far.
 
-**`completeness` cannot be tested here, and the reason is itself informative.** Every baseline run is 100% tie-excluded: on a healthy cluster all replicas hold all objects, so no "worst" replica exists and there is nothing to detect. The chaos figure of 0.929 is therefore **uncontrolled** and must not be quoted as though it had a baseline. It is also not independent of the `e2e_recall` result — a replica missing objects scores worse on both axes — so the two columns are closer to one finding than two.
+An honest note on why the baseline is *higher* than chaos on this axis: under chaos, the replica the detector flags (the data-poor one) and the replica with the worst `index_recall` are frequently different, so the detector is actively pointed at the wrong replica rather than merely uninformed. Under no chaos there is no such competing signal and near-ties break together, producing the inflated 0.670.
+
+**A limitation of the tie threshold on one axis, found in review.** `resolution_eps()` returns `0.5/(k*queries)`, derived from how mean recall@k over nq queries quantises. That is correct for `e2e_recall` and `index_recall`. `completeness` is a fraction of ids, quantised by the id count, so the same epsilon is *not* derived for it — the SPEC's claim that the threshold comes from the run's own parameters holds for two axes of three. Since the completeness column is already uncontrolled and unused for any comparison, it is reported with this stated rather than re-derived.
+
+**`completeness` cannot be tested, and the reason is informative.** Every baseline run is 100% tie-excluded: on a healthy cluster all replicas hold every object, so no "worst" replica exists. The chaos figure of 0.929 is therefore **uncontrolled** and must not be quoted as though it had a baseline. It is also not independent of `e2e_recall` — a replica missing objects scores worse on both.
 
 ## Decision
 
-**MERGE.** Layer 3 moves from one system to two, with a stated boundary: **`loo_agreement` detects data-loss-driven quality divergence on Qdrant and does not detect graph-quality divergence.**
+**MERGE.** Layer 3 moves from one system to two, with a hard boundary: **`loo_agreement` detects data-loss-driven quality divergence on Qdrant, and is at chance on graph-quality divergence.**
 
 Consequences to file:
-1. `analysis/*` — the top-level README's HYPOTHESIS box says the detector "still rests on one system and one implementation." That is now wrong in one direction and incomplete in another: it replicates on Qdrant for `e2e_recall`, and it fails there for `index_recall`. Both belong in the box, and the DO-NOT-CLAIM list needs a line forbidding "`loo_agreement` detects the degraded replica" without the axis.
-2. `experiment/*` — whether a *different* ground-truth-free statistic can see graph-quality divergence is now a well-posed open question, and it is the one that matters most for the project's thesis. `shard_agreement` is already recorded in every run and was not scored here.
-3. `method/*` — the tie-exclusion rate reaches 50% under chaos and 100% on baseline completeness. A detector study designed from scratch would choose a metric with more headroom than `index_recall`'s ~1%, or a larger `k`.
+1. `analysis/*` — the top-level README's HYPOTHESIS box says the detector "still rests on one system and one implementation." Now wrong in one direction and incomplete in another: it replicates for `e2e_recall`, and it is *at chance* for `index_recall`. The DO-NOT-CLAIM list needs a line forbidding "`loo_agreement` detects the degraded replica" without naming the axis.
+2. `experiment/*` — whether a *different* ground-truth-free statistic can see graph-quality divergence is now the project's most consequential open question, because the current one demonstrably cannot. `shard_agreement` is recorded in every run and was not scored here.
+3. `method/*` — a detector study designed from scratch would choose a truth axis with more headroom than `index_recall`'s ~1%, or a larger `k`.
 
-**What must not be claimed from this.** That the detector was "validated on Qdrant" without naming the axis. That 0.876 vs nano-db's 0.87 is agreement between systems — the runs differ in every other respect. That the `completeness` 0.929 is a controlled result. That the `index_recall` failure is proof the detector *cannot* work on graph quality — n is 13 chaos runs, the tie rate is 50%, and the effect being detected sits in ~1% of headroom; this is a null with weak power, and it is reported as such rather than as a refutation.
+**What must not be claimed.** That the detector was "validated on Qdrant" without naming the axis. That 0.908 vs nano-db's 0.87 is agreement between systems — the runs differ in corpus, topology, chaos mechanism and duration. That the `completeness` 0.929 is controlled. That `index_recall` at 0.348 proves the detector *cannot ever* work on graph quality — it is 9 chaos runs, on one system, against an effect living in ~1% of headroom; what is shown is that **this** statistic, on **this** data, is at chance.

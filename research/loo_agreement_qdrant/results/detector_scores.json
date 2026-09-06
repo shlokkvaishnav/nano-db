@@ -1,7 +1,7 @@
 [
  {
   "run": "research/qdrant_gated_index_recall/results/run0/samples.csv",
-  "condition": "other",
+  "condition": "baseline",
   "rows": 42,
   "eps": 0.0005,
   "axes": {
@@ -39,7 +39,7 @@
  },
  {
   "run": "research/qdrant_gated_index_recall/results/run0_before_after/samples.csv",
-  "condition": "other",
+  "condition": "baseline",
   "rows": 42,
   "eps": 0.0005,
   "axes": {
@@ -647,7 +647,7 @@
  },
  {
   "run": "research/qdrant_index_gate/results/thr1000_n100k_nochaos_seed20260978/samples.csv",
-  "condition": "chaos",
+  "condition": "baseline",
   "rows": 90,
   "eps": 0.005,
   "axes": {
@@ -685,7 +685,7 @@
  },
  {
   "run": "research/qdrant_index_gate/results/thr1000_n100k_nochaos_seed20260979/samples.csv",
-  "condition": "chaos",
+  "condition": "baseline",
   "rows": 84,
   "eps": 0.005,
   "axes": {
@@ -723,7 +723,7 @@
  },
  {
   "run": "research/qdrant_index_gate/results/thr1000_n200k_chaos_seed20260983/samples.csv",
-  "condition": "chaos",
+  "condition": "quiesce",
   "rows": 72,
   "eps": 0.005,
   "axes": {
@@ -761,7 +761,7 @@
  },
  {
   "run": "research/qdrant_index_gate/results/thr1000_n200k_nochaos_seed20260980/samples.csv",
-  "condition": "chaos",
+  "condition": "baseline",
   "rows": 66,
   "eps": 0.005,
   "axes": {
@@ -799,7 +799,7 @@
  },
  {
   "run": "research/qdrant_index_gate/results/thr1000_n200k_nochaos_seed20260981/samples.csv",
-  "condition": "chaos",
+  "condition": "baseline",
   "rows": 66,
   "eps": 0.005,
   "axes": {
@@ -837,7 +837,7 @@
  },
  {
   "run": "research/qdrant_index_gate/results/thr5000_n200k_nochaos_seed20260976/samples.csv",
-  "condition": "chaos",
+  "condition": "baseline",
   "rows": 60,
   "eps": 0.005,
   "axes": {
@@ -1255,7 +1255,7 @@
  },
  {
   "run": "research/qdrant_kill_scheduler/results/long-gap-same-node/samples.csv",
-  "condition": "other",
+  "condition": "quiesce",
   "rows": 204,
   "eps": 0.001,
   "axes": {
@@ -1293,7 +1293,7 @@
  },
  {
   "run": "research/qdrant_kill_scheduler/results/short-gap-same-node/samples.csv",
-  "condition": "other",
+  "condition": "quiesce",
   "rows": 210,
   "eps": 0.001,
   "axes": {
@@ -1331,7 +1331,7 @@
  },
  {
   "run": "research/qdrant_kill_scheduler/results/spread/samples.csv",
-  "condition": "other",
+  "condition": "quiesce",
   "rows": 204,
   "eps": 0.001,
   "axes": {

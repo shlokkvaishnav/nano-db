@@ -51,13 +51,46 @@ PATTERNS = (
 )
 
 
-def condition_of(path: str) -> str:
-    """baseline / chaos / quiesce, from the run directory's name."""
+def condition_of(path: str, meta: dict | None = None) -> str:
+    """baseline / chaos / quiesce, from `run_meta.json` where possible.
+
+    Review round 1 caught the reason this does not read directory names: five
+    `qdrant_index_gate` runs are named `..._nochaos_...`, and `"chaos" in
+    "nochaos"` is True, so a substring match silently filed five NO-CHAOS runs
+    into the chaos group. That contaminated the very comparison the study
+    turns on.
+
+    `run_meta.json` carries the run's own `chaos` and `quiesce` flags, written
+    by the harness at run time. That is what the run *was*, not what someone
+    called its directory, so it is preferred and the name is only a fallback.
+    The fallback now tests `nochaos` first and is asserted against in
+    `_assert_no_nochaos_in_chaos()`.
+    """
+    if meta:
+        chaos = meta.get("chaos")
+        if chaos is not None:
+            if not chaos:
+                return "baseline"
+            return "quiesce" if meta.get("quiesce") else "chaos"
+
     d = os.path.basename(os.path.dirname(path)).lower()
+    if "nochaos" in d or "no_chaos" in d or "no-chaos" in d:
+        return "baseline"
     for c in ("baseline", "quiesce", "chaos"):
         if c in d:
             return c
     return "other"
+
+
+def _assert_no_nochaos_in_chaos(records) -> None:
+    """The guard for the bug review round 1 found. Cheap, and it fails loudly."""
+    bad = [r["run"] for r in records
+           if r["condition"] == "chaos"
+           and any(t in r["run"].lower() for t in ("nochaos", "no_chaos", "no-chaos"))]
+    if bad:
+        raise AssertionError(
+            "runs named 'nochaos' were classified as chaos -- the review-round-1 "
+            "bug has recurred:\n  " + "\n  ".join(bad))
 
 
 def load(path):
@@ -166,7 +199,7 @@ def main() -> int:
         eps = resolution_eps(meta)
         rec = {
             "run": os.path.relpath(p, ROOT).replace("\\", "/"),
-            "condition": condition_of(p),
+            "condition": condition_of(p, meta),
             "rows": len(rows),
             "eps": eps,
             "axes": {},
@@ -175,6 +208,8 @@ def main() -> int:
             st = _detection_stats(rows_for_axis(rows, axis), eps)
             rec["axes"][axis] = st
         records.append(rec)
+
+    _assert_no_nochaos_in_chaos(records)
 
     print(f"scored {len(records)} committed runs "
           f"({sum(r['rows'] for r in records)} sample rows)\n")

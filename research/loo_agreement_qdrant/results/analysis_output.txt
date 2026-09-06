@@ -2,24 +2,21 @@ scored 51 committed runs (4644 sample rows)
 
 === truth axis: e2e_recall ===
   condition   runs  scoreable   hit rate   chance   groups  tie-excluded
-  baseline      15         12      0.586    0.333      194        51.5%
-  chaos         16         13      0.876    0.333      112        52.8%
-  other          5          1      0.909    0.333       11        93.1%
-  quiesce       15         12      0.589    0.333      206        34.2%
+  baseline      22         16      0.635    0.333      229        57.3%
+  chaos         10          9      0.908    0.333       80        25.0%
+  quiesce       19         13      0.620    0.333      214        58.0%
 
 === truth axis: index_recall ===
   condition   runs  scoreable   hit rate   chance   groups  tie-excluded
-  baseline      15         15      0.648    0.333      280        30.0%
-  chaos         16         13      0.469    0.333      115        50.4%
-  other          5          2      0.722    0.333       19        91.3%
-  quiesce       15         15      0.586    0.333      240        27.3%
+  baseline      22         20      0.670    0.333      323        40.4%
+  chaos         10          9      0.348    0.333       84        21.4%
+  quiesce       19         16      0.594    0.333      247        53.9%
 
 === truth axis: completeness ===
   condition   runs  scoreable   hit rate   chance   groups  tie-excluded
-  baseline      15          0         --       --        0       100.0%
-  chaos         16          8      0.929    0.333       65        69.6%
-  other          5          0         --       --        0       100.0%
-  quiesce       15          3      0.725    0.333       25        81.8%
+  baseline      22          0         --       --        0       100.0%
+  chaos         10          8      0.929    0.333       65        35.7%
+  quiesce       19          3      0.725    0.333       25        88.1%
 
 Reading this table:
   * 'scoreable' counts runs with >=5 non-tied groups. A run below that
@@ -38,8 +35,8 @@ Reading this table:
   whether the p is exact or from a seeded permutation test.
 
   axis                       baseline               chaos      U        p  method        
-  e2e_recall             0.586 (n=12)        0.876 (n=13)  137.0   0.0007  perm(200000)    <- separates
-  index_recall           0.648 (n=15)        0.469 (n=13)   56.5   0.0594  perm(200000)  
+  e2e_recall             0.635 (n=16)         0.908 (n=9)  123.0   0.0023  perm(200000)    <- separates
+  index_recall           0.670 (n=20)         0.348 (n=9)   13.0   0.0001  perm(200000)    <- separates, WRONG DIRECTION
   completeness                    n=0                 n=8     --       --   (a condition has no scoreable run)
 
 wrote research/loo_agreement_qdrant/results/detector_scores.json
