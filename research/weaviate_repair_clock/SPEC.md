@@ -84,6 +84,34 @@ Any outcome fixes #54's window timing, which is the practical purpose. (a) or (b
 
 **Absence and age cannot both be free** — a 6 s outage cannot hold a 38 s age, so the design's cells are bounded by construction and the corners are unreachable; the analysis must not extrapolate into them. **Write duration is inside the outage**, negligible at 50 objects. **Wall-clock recording is essential** for step 2 and absent from #48's runs, so that step cannot be answered from existing data. **The probe may perturb the repair it measures** — polling flat out loads the node doing the reconciliation; tested here at one cell rather than assumed. **Order effects** — cells are interleaved in randomized order, since #48 step 2b showed repetition index carries no information but only after testing it. **One host, one build, one topology.**
 
+## Amendment 1 (2026-09-06, mid-run, before any result is analysed): analyse realized offsets, not requested labels
+
+Two runs in step 1 missed their requested timings badly — a cell requesting a
+40 s absence realized **137.4 s** with an age of 0.2 s instead of 6 s, and a
+10 s cell realized 18.0 s with an age of 1.8 s. The cause is structural, not a
+bug: the write is placed `absent_s - age_s` into the outage, so when
+`docker stop` plus the write take longer than that gap, the write lands late,
+the age collapses, and the outage overruns. Short absences have the least slack
+and fail first.
+
+`repair_clock.py` already records **realized** `absent_s` and `age_s` per run
+rather than the requested values — the same lesson `qdrant_kill_scheduler`
+learned when `docker start` cost a near-constant ~3.3 s out of every requested
+gap. So the data is not lost; only the cell labels are unreliable.
+
+**The analysis therefore uses realized offsets and ignores the labels.** The
+decision statistic is unchanged in kind — it is still CV of `repair_s` against
+CV of `age_s + repair_s` — but computed over runs binned by *realized* age
+rather than by requested cell, and the relationship is also reported as a plain
+scatter of `repair_s` and `since_write_s` against realized `age_s`, which needs
+no binning at all.
+
+This is written before any step 1b result has been read. It is recorded here
+rather than applied silently because switching from requested to realized
+offsets after seeing data is exactly the kind of choice that has to be dated to
+be trustworthy — and because the anomalous runs are kept, not dropped: a run
+that overran is a valid observation at its realized offsets.
+
 ## Results
 
 *(to be filled after the runs)*
