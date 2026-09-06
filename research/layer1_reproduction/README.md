@@ -1,6 +1,28 @@
 # Reproducing Layer 1, and committing its data
 
-Issue #53 · branch `reproduction/layer1-data` · **harness written, no runs yet.**
+Issue #53 · branch `reproduction/layer1-data` · **Outcome (a): it reproduces, and the data is committed.**
+
+## The result
+
+10 of 10 cells ran. `ctest` 9/9. **1,632 sample rows in 297 KB** — so "too large to commit" never applied, and nothing was omitted. Every chaos run fired kills (45, 45, 47, 49, 47), so none is the zero-kill hole that cost #35 a seed.
+
+| metric | baseline | chaos | p |
+|---|---|---|---|
+| within-shard spread | 0.0000 ± 0.0000 | 0.0534 ± 0.0103 | **0.0079** |
+| `index_recall` | 0.9973 ± 0.0004 | 0.9709 ± 0.0119 | **0.0079** |
+| `completeness` | 1.0000 ± 0.0000 | 0.9580 ± 0.0083 | **0.0079** |
+| `e2e_recall` | 0.9994 ± 0.0001 | 0.9581 ± 0.0100 | **0.0079** |
+| detector hit rate | undefined | 0.8666 | — |
+
+p = 0.0079 is the **floor** at 5 v 5 — complete separation, not a large effect. Size-matched, the mean delta is −0.0368 over 9 comparable bins.
+
+**Two things this does not do.** It is not independent confirmation — same protocol, same binaries, same measurement code; agreement is evidence of *reproducibility*. And it could not compare magnitudes to the originals, because the originals were never committed, which is the whole reason this study exists. The claim as written is qualitative plus a p-value, and it reproduces. One committed magnitude did match independently: the detector's 0.8666 against `loo_agreement_nonpinned_queries`' 0.87.
+
+The quiesce protocol was **not** run, so "missing data has not returned in any observed post-recovery window" is not reproduced here.
+
+## The part worth reading
+
+The risk this study was designed around was six-month-old C++ that no longer ran. The substrate was fine — it built clean and passed 9/9. **All four defects were in the reproduction machinery written this week**, and each would have produced a confident wrong answer; one of them would have declared the substrate broken and abandoned the study under this spec's own go/no-go rule.
 
 ## Why this exists
 

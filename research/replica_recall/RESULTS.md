@@ -1,5 +1,13 @@
 # Results
 
+**Partly superseded 2026-09-06 by [`../layer1_reproduction/`](../layer1_reproduction/) (#53).** A fresh 5-seed sweep of this exact protocol, unmodified, now commits 1,632 sample rows under `research/layer1_reproduction/results_sweep/`, and it reproduces: `index_recall` 0.9973 → 0.9709, `completeness` 1.0000 → 0.9580, `e2e_recall` 0.9994 → 0.9581, within-shard spread 0.0000 → 0.0534, each at p = 0.0079.
+
+Read as **reproducibility, not confirmation** — same code, new host (a container, on the container's own filesystem, on a memory-constrained machine). And note what it could *not* check: the published magnitudes were never recorded, so only the claim as written could be tested. The **quiesce protocol was not re-run**, so the non-recovery claim below is still uncommitted.
+
+The statement below remains true of *this directory*, which is why it is kept rather than deleted — the reproduction was deliberately filed separately, since a run on a different host is a different artifact.
+
+---
+
 **No raw experiment output is currently committed to this repository.**
 
 The measurement harness (`run_experiment.py`, `sweep.py`, `forensics_experiment.py`) requires Linux with the cluster binaries built — it launches processes directly, no Docker. It has not been (re-)run in every environment this project has been developed in, so there is no `samples.csv`, sweep directory, or forensics output sitting here to inspect.

@@ -2,7 +2,7 @@
 
 **Branch:** `reproduction/layer1-data`
 **Date opened:** 2026-09-06
-**Status:** IN PROGRESS — harness written, no runs yet
+**Status:** COMPLETE — outcome (a). Reproduces at p = 0.0079 on all four separating metrics; 1,632 sample rows committed in 297 KB. Four harness defects found and fixed en route, none of them in the substrate being reproduced (Amendment 1).
 
 Issue: closes #53. Body copied verbatim below (per `research/AGENT_PIPELINE.md`'s implementer instructions — this is the issue text unmodified, not a paraphrase).
 
@@ -243,11 +243,66 @@ this host**, not just this one. Filed as a consequence rather than fixed here.
 
 ## Results
 
-*(no sweep runs yet — `deps`, `build` (9/9) and `corpus` complete)*
+**Outcome (a). 10 of 10 cells produced data; the published claim reproduces; the raw data is committed.**
+
+`ctest` 9/9. Sweep: 5 seeds × {180 s baseline, 300 s chaos}, protocol unmodified. **1,632 sample rows in 297 KB** — so hypothesis (ii), "reproduces but too large to commit", does not apply; nothing had to be omitted.
+
+Every chaos run fired kills — **45, 45, 47, 49, 47** chaos events — so none is the zero-kill hole that cost #35 a seed and produced #38. `corpus_exhausted` is false in all ten.
+
+### The headline comparison
+
+| metric | baseline | chaos | p |
+|---|---|---|---|
+| within-shard spread | 0.0000 ± 0.0000 | 0.0534 ± 0.0103 | **0.0079** |
+| p95 spread | 0.0004 ± 0.0005 | 0.1275 ± 0.0303 | **0.0079** |
+| `index_recall` | 0.9973 ± 0.0004 | 0.9709 ± 0.0119 | **0.0079** |
+| `completeness` | 1.0000 ± 0.0000 | 0.9580 ± 0.0083 | **0.0079** |
+| `e2e_recall` | 0.9994 ± 0.0001 | 0.9581 ± 0.0100 | **0.0079** |
+| detector hit rate | undefined | 0.8666 | — |
+
+Exact two-sided Mann-Whitney. **p = 0.0079 is the smallest attainable value at 5 v 5** — it means the groups separate completely, not that the effect is large, and that caveat travels with every one of these figures exactly as it does in the README.
+
+The README's ESTABLISHED claim for nano-db is that *"`index_recall` and `completeness` both degrade measurably and statistically significantly versus a no-chaos baseline (exact Mann-Whitney at the n = 5 floor, p = 0.0079)"*. Both do, at that p, on a fresh 5-seed sweep on a machine the original never ran on.
+
+Size-matched, the effect is not an artifact of chaos runs reaching different index sizes: pooled across seeds the mean delta is **−0.0368 over 9 comparable bins**, and every bin from 2,500 upward is negative.
+
+### What could NOT be checked, and why that is itself a result
+
+**The magnitudes could not be compared to the originals, because the originals were never committed** — which is the entire reason this issue exists. What can be checked is the claim *as written*, and the claim as written is qualitative plus a p-value. It reproduces.
+
+That is a weaker check than it sounds, and the weakness is a property of how the claim was recorded, not of this run. A published `index_recall` of 0.9709 ± 0.0119 could have been 0.95 or 0.99 originally and this reproduction could not tell. From now on it can: these numbers are in version control.
+
+**One committed magnitude did match.** The detector hit rate here is **0.8666** against a 1/3 chance line; `loo_agreement_nonpinned_queries` reports **0.87** for its pinned condition. That is a real agreement between two independently produced numbers, and it is the only one available.
+
+**The quiesce protocol was not run**, so the ESTABLISHED sentence *"missing data has not returned in any observed post-recovery window"* is **not** reproduced here. The sweep runs faults for the whole duration, which measures a steady state and by construction cannot answer a healing question. Stated rather than glossed: this reproduction covers the divergence claim, not the non-recovery claim.
 
 ## Interpretation
 
-*(to be filled)*
+**The biggest audit gap in the project is closed, and it closed in the favourable direction.**
+
+Layer 1 is the study the top-level README opens with and that `RELATED_WORK.md` positions the whole contribution around, and it was the one study whose evidence a reader could not inspect — ~13,400 committed sample rows everywhere else, zero here. There are now 1,632 more, per seed, per replica, per sample.
+
+**This is not independent confirmation, and must never be written as one.** Same protocol, same binaries, same measurement code. What it establishes is *reproducibility*: the harness still runs, the pipeline still produces the shape of result it claimed, and the numbers are now checkable by someone who does not trust the pipeline. A second confirmation of the effect would need a different implementation, which is what the Qdrant and Weaviate legs are for.
+
+**Four ways this is not the original machine**, and all four belong in any write-up that cites these numbers: a container the original runs did not have; the container's own filesystem rather than the host's, because the bind mount could not support the substrate's concurrency assumptions; a host with 7.7 GB of RAM and a full disk; and a build from a toolchain list assembled here rather than the one the original used. "A different machine is a different measurement" is now four specific differences instead of a generic caveat.
+
+**The harness had rotted, and not in the substrate.** Hypothesis (iii) anticipated bit-rot in `src/`, `cluster/`, `proto/` — code untouched since June 2026 while the research moved to Python-on-Docker. The C++ substrate was fine: it built clean and passed 9/9. Everything that broke was in the *reproduction path itself* — quoting that assumed a POSIX shell, a filesystem that could not support atomic rename, a dependency list inherited from a CI job that never runs the experiment, and a process lifetime tied to a client on a memory-starved host. Four defects, none in the thing being reproduced.
+
+That is worth stating plainly because it inverts the expected failure mode. The risk was that the six-month-old C++ would no longer run. What actually happened is that the machinery built *this week* to run it was wrong four times, and each defect would have produced a confident wrong answer: one of them (`ClusterConfigRace` on the bind mount) would have declared the substrate broken and abandoned the study under the spec's own go/no-go rule.
+
+## Decision
+
+**MERGE.**
+
+The pre-registered outcome is (a): reproduces, data committed. `RESULTS.md`'s "no raw experiment output is currently committed" is no longer true for the sweep, and the README's Raw data status section and `research/README.md`'s Layer 1 row need updating to match — done in this PR.
+
+**What must not be claimed.** That Layer 1 has been independently confirmed — it has been *reproduced*, by the same code. That the magnitudes match the published ones — the published ones were never recorded, so no such comparison was possible, and only the detector hit rate (0.8666 vs 0.87) matches a committed figure. That missing data does not return — the quiesce protocol was not run here. That these numbers are host-independent — they come from a container, on a container filesystem, on a memory-constrained machine.
+
+**Consequences to file.**
+
+1. `method/*` — **the bind mount is a confound for every containerised study on this host**, not only this one. It is 7.9× slower for bulk writes, 4.9× for metadata operations, and does not give rename the atomicity a concurrent reader needs. Any past or future study that ran its workload against `/repo` rather than a container-local path should be checked for it.
+2. `reproduction/*` — the quiesce protocol was not reproduced. The non-recovery half of the nano-db ESTABLISHED claim still rests on uncommitted data, so this issue closes one of the two gaps it names, not both.
+3. `analysis/*` — a claim recorded as "significant at p = 0.0079" with no magnitude cannot be checked by re-running it. Recording point estimates alongside p-values should be a `SPEC_TEMPLATE.md` requirement, since the floor p at n = 5 carries almost no information on its own.
 
 ## Decision
 

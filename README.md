@@ -99,9 +99,13 @@ For the full seed sweep the numbers are reported from, corpus choice, the quiesc
 
 ## Raw data status
 
-The nano-db numbers in **ESTABLISHED** come from a 5-seed sweep on real SIFT1M data. **Those raw per-seed results are not committed to this repository.** [`research/replica_recall/RESULTS.md`](research/replica_recall/RESULTS.md) documents the gap explicitly and gives the exact commands to regenerate them, and states the right posture plainly: treat those numbers as reported-but-not-independently-checkable until they are re-run.
+The nano-db numbers in **ESTABLISHED** came from a 5-seed sweep on real SIFT1M data whose **raw per-seed results were never committed**. That gap is now closed for the divergence claim: [`research/layer1_reproduction/`](research/layer1_reproduction/) (#53) re-ran the unchanged protocol on a fresh 5-seed sweep and commits **1,632 sample rows**. All four metrics separate at the n=5 floor — `index_recall` 0.9973 → 0.9709, `completeness` 1.0000 → 0.9580, `e2e_recall` 0.9994 → 0.9581, within-shard spread 0.0000 → 0.0534, each p = 0.0079.
 
-Every other study *does* commit its data — roughly 13,400 sample rows across 90+ runs under `research/*/results*/`. This is the single largest hole in the work and it is closable by re-running, which is why the C++ tree is kept.
+**Read that as reproducibility, not confirmation.** Same protocol, same binaries, same measurement code, on a new host — it establishes that the pipeline still produces the claimed result and that the evidence is now inspectable, not that the effect has been independently confirmed. That is what the Qdrant and Weaviate legs are for.
+
+**Two things are still not checkable.** The *magnitudes* were never recorded, so the reproduction could only test the claim as written (qualitative plus a p-value); the one committed magnitude that could be compared, the detector's hit rate, matched at 0.8666 vs 0.87. And the quiesce protocol was not re-run, so **"missing data has not returned in any observed post-recovery window" still rests on uncommitted data.**
+
+Every other study *does* commit its data — roughly 13,400 sample rows across 90+ runs under `research/*/results*/`.
 
 No numbers anywhere in this repository are backfilled or estimated.
 
