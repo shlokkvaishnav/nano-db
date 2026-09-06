@@ -5,6 +5,13 @@ published work. It exists to keep the project honest: the claims here are
 narrower than the ones that first suggested themselves, and the last section
 lists the things we must **not** say because someone else already owns them.
 
+**Refreshed 2026-09-06 (#55, PR pending).** This document was written in August
+2026 around `research/replica_recall/` alone and predates the Qdrant and
+Weaviate legs. That pass resolved an internal contradiction about which claim is
+sharpest, added the replica-vs-aggregate result and the prior art that bounds
+it, folded in what #52 found about the detector, and re-ran the scooping check
+(§9). Two new citations were added and one framing risk with them.
+
 **Status of the citations.** Gathered by literature search in August 2026, then
 independently verified against source — every arXiv ID resolves and matches its
 claimed content, but one citation (ClickHouse #104674, previously the lead
@@ -129,6 +136,15 @@ inference (each replica is itself sharded the same way), not something that
 specific page states about replicas directly. Hash-based comparison is simply
 not available for the thing that degraded.
 
+**Measured directly since this was written (2026-09-06, #43/#46/#48).** Weaviate's
+hash-tree mechanism is no longer cited from documentation alone. Its repair is
+**timing-determined and independent of divergence size across 50→5,000**; the
+completeness transition is a step at 50–500 objects (≤8–167 ms) and a ~6 s ramp
+at 5,000; and at a fixed 40 s outage the latency depends on where inside the
+outage the write landed. What that does **not** yet establish is the load-bearing
+half — that object-level repair leaves the *graph* unrepaired. That is #54, and
+until it runs, §4's argument stays structural.
+
 This forces an honest weakening of our healing result, handled in §Framing risks.
 
 ### 5. Ground-truth-free ANN quality estimation — **PARTIAL**
@@ -158,6 +174,21 @@ argument**: these are replicas of the same shard, which are *supposed to be
 identical*, so disagreement between them is damage rather than model diversity.
 The 1e-4 independently-built-replica control is what makes that attribution
 sound. Claim the argument and the control, not the technique.
+
+**Update 2026-09-06 (#52), and it narrows the claim considerably.** Scoring the
+detector on 51 already-committed Qdrant runs found it replicates for
+end-to-end quality (0.908 against a 0.635 no-chaos control, p = 0.0023) and is
+**at chance for graph quality** — 0.348 against a chance line of 0.333, versus a
+0.670 baseline, separating at p = 0.0001 *in the wrong direction*.
+
+So the detector does not find the replica that this project's own headline
+Qdrant finding is about. Any claim about `loo_agreement` must name the axis. The
+likely reason is worth stating because it is the thesis turned on the tool: the
+statistic compares *returned results*, so a replica missing objects is easy to
+flag, while a replica holding all the data with a slightly worse graph returns
+nearly the same answers. **The detector is subject to the silence the project
+exists to study.** Whether a different ground-truth-free statistic can see graph
+damage is now the most consequential open question here.
 
 ### 6. Production evidence — **moderate**
 
@@ -202,19 +233,97 @@ reviewer may reasonably ask who was harmed, and the honest answer is "no public
 report of exactly this, only adjacent bugs" — which is closer to the actual
 strength of the motivation than the earlier draft implied.
 
+### 7. Stratified vs aggregate recall, and replica divergence — **PARTIAL, and this is the bound on novelty item 1**
+
+Added 2026-09-06 (#55). The scooping re-run found that **the general principle
+behind this project's strongest result is already stated**, and that not saying
+so would be the most likely way to get the paper rejected.
+
+**The principle is known.** That a mean recall number hides per-stratum failure
+is established in at least three places:
+
+- **Across queries / embedding regions.** arXiv:2507.00379 (Robustness-δ@K) and
+  the newer arXiv:2608.25185 both show that "optimizing for mean recall masks
+  significant differences in recall across queries even when target recall is
+  met." The latter partitions the embedding space by k-means and compares
+  recall between regions — single index, no replication, no fault injection.
+- **Across tenants / namespaces.** Practitioner writing states the operational
+  version bluntly: when tenants share an HNSW graph one tenant can sit 5–10
+  recall points lower, an aggregate number averages it away, and you should
+  **gate on the worst stratum, not the mean.** That is structurally the same
+  recommendation this project arrives at, one level of abstraction away.
+
+**Replica divergence itself is also known, qualitatively.** A production
+write-up describes replicas "that are supposedly the same" slowly diverging so
+that "identical queries may return different neighbors depending on where they
+land," and lists **"recall variance across nodes"** as a metric to monitor. It
+attributes the cause to asynchronous writes, partial batches, background
+rebuilds and out-of-order ingestion — **not** to node failure — and it
+quantifies nothing, where the same article gives hard numbers for other failure
+modes.
+
+**So what is actually left.** Not "averaging hides degradation," and not "replicas
+can diverge." What no source found does:
+
+1. **Strata that are supposed to be identical.** Tenants and embedding regions
+   differ *legitimately* — a worst-namespace gate is managing expected
+   heterogeneity. Replicas of one shard are supposed to hold the same data and
+   answer the same way, so divergence between them is **damage**, and the 1e-4
+   independently-built-replica control is what licenses that attribution. This
+   is the same argument §5 already makes for `loo_agreement`, and it is the
+   load-bearing one.
+2. **Attribution to injected failure**, rather than to ingestion asynchrony.
+3. **A number.** 0.978 vs 0.990, p = 0.0079 replica-level against p = 0.31 on
+   the cluster mean of the same runs. The practitioner sources name the metric
+   and do not report it.
+
+**Cite and distinguish, do not claim:** the stratified-recall principle, and the
+observation that replicas drift. Claim the identity argument, the failure
+attribution, and the measurement.
+
 ---
 
 ## Novelty verdict
 
-Unclaimed is the **conjunction**, not any single element:
+**Re-ranked 2026-09-06 (#55).** The original ranking is kept below, struck,
+because the reason it changed is worth more than the ranking itself.
 
-1. Recall measured **per replica within a shard**, under node-kill chaos
-2. The **three-way decomposition** — `index_recall` (graph quality, data held
+~~1. Recall measured per replica within a shard, under node-kill chaos.
+2. The three-way decomposition.
+3. `miss@stop == miss@end` after full recovery. **The sharpest claim, because it
+   is falsifiable, surprising, and unmeasured.**~~
+
+Item 3 cannot be the sharpest claim, and this document said so elsewhere all
+along. Framing risk #5 states that the 0% healing result is scoped to nano-db
+**because nano-db has no anti-entropy by design** — `coordinator_main.cpp`
+documents it. "Data never returns in a system built with no repair mechanism" is
+close to definitional, not surprising. And Qdrant, which does have replica
+recovery, **heals at a 180 s horizon** (#35 / PR #37). The subtitle question
+"does it ever come back?" currently answers *yes on the production system, no on
+the one that has no way to*. Two sections of this file were making opposite
+claims about the same result.
+
+The current ranking, strongest first:
+
+1. **The measurement unit is the finding: replica-level separation with a
+   cluster-level null on the same runs.** On Qdrant, worst-replica
+   `index_recall` under chaos is 0.978 vs 0.990 at baseline, every seed
+   separated, exact p = 0.0079 — while the **mean over the same six replicas
+   does not separate, p = 0.31**. Both are correct. A monitor that averages is
+   structurally blind to this. See §7 for what bounds that claim, because the
+   general principle is *not* new.
+2. **The three-way decomposition** — `index_recall` (graph quality, data held
    constant) vs `completeness` (data content, no search) vs `e2e_recall` (client
    experience). Vendor blogs gesture at "index quality vs retrieval quality";
-   nobody isolates completeness as a replication-damage diagnostic.
-3. **`miss@stop == miss@end` after full recovery.** The sharpest claim, because
-   it is falsifiable, surprising, and unmeasured.
+   nobody found isolates completeness as a replication-damage diagnostic.
+3. **Cross-system reproduction under a *fixed instrument*.** The Qdrant result
+   only became measurable after an indexing gate (#28) showed the first attempt
+   had measured an un-indexed corpus. That the first measurement was wrong, was
+   caught, and was withdrawn in both directions is part of the contribution, not
+   an embarrassment to hide.
+4. ~~`miss@stop == miss@end`~~ — demoted. Still true on nano-db, still worth
+   reporting, but definitional given that system's design and contradicted on
+   the system that has repair.
 
 The framing "approximation converts data loss into silence, so no Jepsen-family
 checker can flag it" is defensible: no checker found models an approximately
@@ -222,11 +331,14 @@ correct read, and no Jepsen analysis has targeted a vector store.
 
 **Already well-trodden — cite, do not claim:** the ANN oracle problem
 (arXiv:2502.20812 states it in the abstract); average recall hiding variance
-(arXiv:2507.00379); low-overhead ANN quality estimation (arXiv:2606.04522,
-SIGIR'26); jackknife/ensemble disagreement; recall decay under churn
-(FreshDiskANN, SPFresh, Big-ANN'23); Merkle-tree anti-entropy (Dynamo); and the
-general observation that a degraded index returns worse answers instead of
-paging you — Pinecone says this in a marketing post.
+across queries (arXiv:2507.00379, arXiv:2608.25185) and across tenants
+(practitioner writing, §7); low-overhead ANN quality estimation
+(arXiv:2606.04522, SIGIR'26); jackknife/ensemble disagreement; recall decay
+under churn (FreshDiskANN, SPFresh, Big-ANN'23); Merkle-tree anti-entropy
+(Dynamo); **that replicas of the same shard can silently diverge** (§7 — a
+practitioner post says it plainly, and names "recall variance across nodes" as a
+metric to watch); and the general observation that a degraded index returns
+worse answers instead of paging you — Pinecone says this in a marketing post.
 
 ---
 
@@ -250,6 +362,8 @@ paging you — Pinecone says this in a marketing post.
 | 14 | Qdrant #4626 / #4627 — missed upserts and deletes after node restart | https://github.com/qdrant/qdrant/issues/4626 | Replica divergence in a shipping vector DB |
 | 15 | Milvus OSS QA / Chaos Mesh testing | https://milvus.io/blog/deep-dive-6-oss-qa.md | Vendor chaos suite asserts liveness and counts, not recall |
 | 16 | Afek/Korland/Yanovsky quasi-linearizability; Adhikari et al., STTT 2015 | https://link.springer.com/article/10.1007/s10009-015-0373-2 | Formal lineage for relaxed correctness |
+| 17 | *Analyzing and Reducing Search Quality Differences in Vector Similarity Search*, arXiv:2608.25185, 2026 | https://arxiv.org/abs/2608.25185 | "Optimizing for mean recall masks significant differences in recall across queries." Same principle as our replica-level result, one stratum away — single index, no replication, no faults. **Cite and distinguish; do not claim the principle** |
+| 18 | Fadeev, *When Vector Search Breaks in Production* (practitioner write-up) | https://afadeev.substack.com/p/when-vector-search-breaks-in-production-0ad | States replica divergence plainly — replicas "supposedly the same" diverging so "identical queries may return different neighbors" — and names "recall variance across nodes" as a metric to monitor. Attributes it to ingestion asynchrony, **not** failure, and quantifies nothing. The observation is not ours; the measurement is |
 
 **Removed:** ClickHouse #104674 was in this slot in an earlier draft as "best
 production evidence." Verification found the reporter retracted it — the
@@ -323,10 +437,60 @@ against it.
 7. **Watch the title collision** with arXiv:2511.04221 ("Convergent ANN Search").
    Distinguish explicitly.
 
+9. **Do not claim to be first to notice that replicas diverge, or that averaging
+   hides it.** Added 2026-09-06 after the scooping re-run (§7, §9). A
+   practitioner write-up states replica divergence plainly and names "recall
+   variance across nodes" as a metric; the stratified-vs-aggregate principle is
+   published across queries (arXiv:2507.00379, arXiv:2608.25185) and stated
+   operationally across tenants. Claim instead: **strata that are supposed to be
+   identical**, so divergence is damage rather than expected heterogeneity;
+   **attribution to injected failure** rather than ingestion asynchrony; and **a
+   number** where the practitioner sources give none. This is the risk most
+   likely to sink the paper if left unaddressed, because the reviewer who knows
+   the operational literature will recognise the principle immediately.
+
+10. **Do not claim `loo_agreement` detects degraded replicas, unqualified.**
+    #52 measured it at chance on graph quality (0.348 vs a 0.333 chance line)
+    while replicating for end-to-end quality (0.908 vs 0.635). Every claim about
+    the detector must name the axis.
+
 8. **n=5 will get probed.** Lead with effect sizes and per-run data, not the
    p-value — 0.0079 is the exact floor for 5v5, so it carries less information
    than it looks like it does. The direct mitigation is `--dist sift`: an
    independent replication on real data is worth more than another synthetic seed.
+
+---
+
+## 9. Scooping check — what was actually searched, and when
+
+Recorded so the next person knows what was covered rather than trusting that
+"a search was done." The August 2026 pass did not record its queries; this one
+does.
+
+**2026-09-06**, four queries, US-region web search:
+
+1. `detecting silent degradation replicated approximate nearest neighbor index recall divergence vector database`
+2. `ground-truth-free recall estimation peer agreement replicas consistency checking vector search production monitoring`
+3. `metamorphic testing differential testing approximate nearest neighbor index correctness oracle problem`
+4. `per-replica search quality monitoring vector database replica-level recall divergence averaging hides degradation`
+5. `Qdrant Weaviate replica node failure chaos recall divergence per-replica measurement 2026`
+
+**Found and now cited:** arXiv:2608.25185 (query-level recall variance, single
+index — entry 17) and a practitioner write-up stating replica divergence
+qualitatively and naming "recall variance across nodes" as a metric (entry 18).
+Both narrow what may be claimed; see §7 and framing risk 9.
+
+**Not found:** any work measuring recall *per replica of the same shard* under
+injected failure, or quantifying a replica-level divergence. Query 5 returned
+only vendor comparisons and documentation. Query 3 confirmed the oracle-problem
+framing this project sits in is well-established software-engineering
+vocabulary — worth adopting explicitly in a write-up, since it gives the
+contribution a name reviewers already have.
+
+**Standing caveat, unchanged:** this is "we could not find," not "there is
+none." Two of the three prior-art surprises in this document's history —
+ClickHouse #104674's retraction, and the two entries above — were found by
+looking again at something already believed settled.
 
 ---
 
@@ -338,12 +502,17 @@ Recorded for reference; writing the paper is not currently in scope.
 |---|---|---|
 | **PVLDB / VLDB Experiments & Analysis** | Best fit — the track rewards "we measured a thing everyone assumed and found it false" | Rolling monthly; VLDB 2027 Athens, final ~Mar 1 2027 |
 | **SIGMOD 2027** | Appetite proven (SIGMOD '26 took a vector-search evaluation-methodology paper) | Four rounds: Jan 17 / Apr 17 / Jul 17 / Oct 17 |
-| **EuroSys 2027** | Nearest actionable systems deadline | Spring abstracts **Sep 24 2026**, papers Oct 1 |
+| **EuroSys 2027** | Nearest actionable systems deadline | Spring abstracts **Sep 24 2026**, papers Oct 1 — *18 days out as of 2026-09-06; the project's own priority is result strength over any date, and the Layer-1 data gap alone rules this round out* |
 | **OSDI '27** | Systems framing | Abstracts Dec 1 2026 |
 | **HotStorage '27** | Ideal for the 5-page provocation version | '26 deadline passed (Jun 2026) |
 | **DBTest** (SIGMOD workshop) | Natural home for the harness/methodology contribution | — |
 
 Pragmatic path: arXiv preprint plus an engineering writeup
 (`research/postmortems/recall-bugs.md` is already most of one). The area is moving
-fast enough — several 2026 arXiv entries — that preprint priority matters more
-than usual.
+fast enough — several 2026 arXiv entries, two of them found in this refresh —
+that preprint priority matters more than usual.
+
+**The blocker is not a deadline.** `research/replica_recall/` has no committed
+raw data (#53), so the study every claim here is built on is currently
+reported-but-not-checkable. That is the first thing an external reader would
+find, and no venue is worth submitting to before it is closed.
