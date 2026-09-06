@@ -180,9 +180,22 @@ def main(argv=None) -> int:
         text = open(spec, encoding="utf-8").read()
         secs = sections_of(text)
         status = status_of(text)
-        has_results = has_section(secs, "Results") and has_section(secs, "Decision")
+        # "Carries results" means the study is DONE, not merely that it has
+        # the headings. A spec written up-front has `## Results` as a
+        # placeholder, and treating that as complete asks a study that has not
+        # run yet for a DECISION_LOG entry. Caught the first time a new spec was
+        # written after this checker landed.
+        complete = "complete" in status.lower()
+        has_results = (has_section(secs, "Results")
+                       and has_section(secs, "Decision")
+                       and complete)
+        # The DRAFT check is deliberately NOT gated on `complete` -- a spec
+        # whose header says DRAFT while it carries a real Decision is exactly
+        # the defect, and gating it on the header would make it unfireable.
+        draft_over_decision = (has_section(secs, "Results")
+                               and has_section(secs, "Decision"))
 
-        if has_results and re.match(r"^DRAFT\b", status, re.I):
+        if draft_over_decision and re.match(r"^DRAFT\b", status, re.I):
             fails.append(
                 f"[1] research/{name}/SPEC.md says 'Status: {status[:60]}' while "
                 f"carrying Results and a Decision. A reader trusts the header.")

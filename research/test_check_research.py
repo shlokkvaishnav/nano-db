@@ -204,6 +204,22 @@ def t_log_warn(tmp):
     return code == 0 and "WARN" in out and "[6]" in out, out
 
 
+@case("[6] an IN PROGRESS spec is not asked for a log entry yet")
+def t_inprogress_not_complete(tmp):
+    spec = SPEC_OK.replace("**Status:** COMPLETE", "**Status:** IN PROGRESS")
+    spec = spec.replace("## Results" + chr(10) + "r" + chr(10),
+                        "## Results" + chr(10) + "*(to be filled)*" + chr(10))
+    code, out = run(build(tmp, spec=spec, log="mentions nothing"))
+    return code == 0 and "[6]" not in out, out
+
+
+@case("[1] DRAFT over a Decision still fires regardless of completeness gating")
+def t_draft_still_fires(tmp):
+    spec = SPEC_OK.replace("**Status:** COMPLETE", "**Status:** DRAFT — nothing yet")
+    code, out = run(build(tmp, spec=spec, log="mentions study_a"))
+    return code == 1 and "[1]" in out, out
+
+
 def main() -> int:
     passed = failed = 0
     for name, fn in CASES:
