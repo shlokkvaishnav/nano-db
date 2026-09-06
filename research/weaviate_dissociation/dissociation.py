@@ -314,6 +314,13 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
     if not reset_class(dry):
         rec["aborted"] = "class reset failed"
         return rec
+    # Amendment 2a: recreating the class MINTS A NEW SHARD, so a shard name read
+    # once at startup is stale for every run after the first reset, and every
+    # per-id probe then queries a shard that does not exist and returns nothing.
+    # Re-read it from the cluster after each reset.
+    if not dry:
+        shard = ia.shard_name(0)
+        rec["shard"] = shard
     log(f"--- seed {seed} chaos={chaos} ---")
     log(f"  writing BASE corpus ({DIVERGENCE} ids) at consistency ALL")
     if not dry:
@@ -328,7 +335,18 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
     # does not score near 1.0, the graph axis is not measuring graph quality and
     # nothing downstream of it means anything (Amendment 2).
     b = (rec["index_recall_before"] or {}).get("index_recall")
-    if not dry and b is not None and b < BASELINE_INDEX_RECALL_FLOOR:
+    if not dry and b is None:
+        # Amendment 2a. The first version of this control only fired on a LOW
+        # score, so a snapshot that failed outright -- returning None -- sailed
+        # straight through it. "The instrument did not answer" is exactly as
+        # fatal as "the instrument answered 0.23", and it is what a stale shard
+        # name produced.
+        log("  ABORT: the no-chaos index_recall snapshot returned nothing at "
+            f"all (shard={rec.get('shard')}). A control that cannot answer is "
+            "not a passing control.")
+        rec["aborted"] = "baseline index_recall snapshot returned None"
+        return rec
+    if not dry and b < BASELINE_INDEX_RECALL_FLOOR:
         log(f"  ABORT: baseline index_recall {b:.3f} < "
             f"{BASELINE_INDEX_RECALL_FLOOR} on an undisturbed replica. The "
             f"instrument is broken, not the cluster. Class holds "
