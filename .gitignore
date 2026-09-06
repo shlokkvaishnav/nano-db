@@ -4,8 +4,6 @@ build/
 *.exe
 *.pdb
 data/
-chaos_run/
-scratch_cmake.txt
 *.bin
 *.ndb
 __pycache__/
@@ -38,3 +36,5 @@ research/qdrant_chaos_loop_timeout/*.err
 research/weaviate_probe/weaviate_run/
 research/weaviate_probe/*.log
 research/weaviate_repair_window/*.log
+research/weaviate_probe_per_id/*.log
+research/weaviate_nonperturbing_probe/*.log
