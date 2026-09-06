@@ -16,9 +16,9 @@ Full contract, current claim, non-claims, and required next experiments: see the
 
 | Investigation | Location | Type | Status |
 |---|---|---|---|
-| Original recall-measurement bugs | [`../docs/postmortems/recall-bugs.md`](../docs/postmortems/recall-bugs.md) | Exploratory | Closed — three bugs found and fixed, one residual effect (distance concentration on synthetic data) diagnosed as not-a-bug |
+| Original recall-measurement bugs | [`postmortems/recall-bugs.md`](postmortems/recall-bugs.md) | Exploratory | Closed — three bugs found and fixed, one residual effect (distance concentration on synthetic data) diagnosed as not-a-bug |
 | Replica-recall divergence under chaos (Layer 1) | [`replica_recall/`](replica_recall/) | Confirmatory | Established on this system; see top-level README's ESTABLISHED box |
-| Catastrophic single-replica disconnection | [`../docs/postmortems/catastrophic-disconnection.md`](../docs/postmortems/catastrophic-disconnection.md) | Exploratory | **Open** — two hypotheses ruled out, root cause unknown |
+| Catastrophic single-replica disconnection | [`postmortems/catastrophic-disconnection.md`](postmortems/catastrophic-disconnection.md) | Exploratory | **Open** — two hypotheses ruled out, root cause unknown |
 | Correctness criterion for replicated approximate indexes (Layer 2) | — | — | Not started |
 | Production detection without ground truth (Layer 3) | `replica_recall/`'s `loo_agreement` detector | Confirmatory (in progress) | Hypothesis under test, not yet confirmed |
 | Cross-system replication (Qdrant) | [`cross_system_replication/`](cross_system_replication/) | Confirmatory (pre-registered) | **Answered on both axes** — 5-seed Qdrant sweep: `completeness`/`e2e_recall` divergence established, healing seed-inconsistent. Graph-quality axis: first mis-measured over an un-indexed corpus (2026-09-02 correction), then re-measured gated-indexed in [`qdrant_gated_index_recall/`](qdrant_gated_index_recall/) — replica-level `index_recall` divergence p = 0.0079, cluster-level null p = 0.31, and that loss is a transient of the restart at a 180s horizon (2026-09-04 addenda). Remaining cross-system step: Weaviate |

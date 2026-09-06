@@ -53,7 +53,7 @@ nano-db is the **experimental apparatus, not the contribution**. It is a distrib
 > One specific objection to the detector has been tested and did not reproduce: its above-chance performance does **not** appear to be an artifact of the harness's pinned, seeded query set. Three 5-seed conditions — pinned, non-pinned at 100 queries/round, non-pinned at 15 — gave mean hit rates of 0.87 / 0.86 / 0.81 against a 1/3 chance line, with per-seed values spanning 0.65–1.00 and overlapping heavily, and all nine pairwise between-condition comparisons non-significant (p = 0.15–0.90); see [`research/loo_agreement_nonpinned_queries/SPEC.md`](research/loo_agreement_nonpinned_queries/SPEC.md). At 5 seeds per condition the test is a weak instrument, so this weakens that confound rather than eliminating it, and does not by itself move the detector out of HYPOTHESIS.
 
 **OPEN** — unresolved questions this repo does not answer:
-> The root cause of why `index_recall` degrades under chaos. A dedicated forensic tool (`graph_forensics.py`) found no average difference in neighbour-list quality between baseline and chaos replicas — except one replica, never itself killed, that lost reachability to 58.7% of its own graph while every structural check on it looked clean. Two specific hypotheses were tested and ruled out with clean reproductions; the actual mechanism is still unknown. Full writeup: [`docs/postmortems/catastrophic-disconnection.md`](docs/postmortems/catastrophic-disconnection.md). Whether the divergence effect scales with corpus size is also untested. On Weaviate, what selects between a millisecond repair and a ~52s one at a *short* outage is unexplained — two manipulated variables do not account for it.
+> The root cause of why `index_recall` degrades under chaos. A dedicated forensic tool (`graph_forensics.py`) found no average difference in neighbour-list quality between baseline and chaos replicas — except one replica, never itself killed, that lost reachability to 58.7% of its own graph while every structural check on it looked clean. Two specific hypotheses were tested and ruled out with clean reproductions; the actual mechanism is still unknown. Full writeup: [`research/postmortems/catastrophic-disconnection.md`](research/postmortems/catastrophic-disconnection.md). Whether the divergence effect scales with corpus size is also untested. On Weaviate, what selects between a millisecond repair and a ~52s one at a *short* outage is unexplained — two manipulated variables do not account for it.
 
 **DO NOT CLAIM** — statements this evidence does not support:
 > "Approximate indexes have no observable correctness criterion under replication" as a general claim (true as a motivating intuition, unproven beyond n=1 system). "Vector databases silently lose data" in general (Milvus #37703 shows a genuinely *loud* failure — the honest claim is that approximation *permits* silence, not that it's universal). "No vector DB repairs missing data" (Weaviate/Vespa do, at the object level — the gap is that object-level repair cannot see graph-level damage). "We understand why recall degrades" (mechanism is open). Anything implying this generalizes to Milvus or production deployments — untested.
@@ -138,10 +138,6 @@ research/                     the research: methodology, experiments, findings
   weaviate_*/                 the Weaviate instrument chain
   loo_agreement_*/            the ground-truth-free detector
   claim_corrections/          claims withdrawn or narrowed, and why
-
-docs/postmortems/             two investigations that fed the research
-  recall-bugs.md              how the original recall-measurement bugs were found
-  catastrophic-disconnection.md   the open 58.7%-loss investigation
 
 benchmarks/research/          benchmark_recall.cpp — load-bearing: the tool whose
                               46% recall reading triggered the bug investigation

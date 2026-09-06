@@ -8,7 +8,7 @@ same wrong guess gets made twice.
 
 ## The question this was trying to answer
 
-The [replica-recall research](../research/replica_recall/README.md) had already
+The [replica-recall research](../replica_recall/README.md) had already
 established *that* node-kill chaos degrades `index_recall` — search quality
 measured with the data held constant — separately from data loss. That's a
 real, replicated finding (`0.9965 → 0.9588` on real SIFT1M, p at the exact
