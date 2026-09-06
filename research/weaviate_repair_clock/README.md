@@ -1,6 +1,6 @@
 # The repair clock: neither write nor restart, but a regime selector
 
-Issue #56 · branch `method/weaviate-repair-clock` · **53 runs. Outcome (d).**
+Issue #56 · branch `method/weaviate-repair-clock` · **55 records, 54 converged. Outcome (d).**
 
 ## The headline, and the trap
 
@@ -23,7 +23,8 @@ Simpson's paradox, in an experiment designed to settle a question about origins.
 
 - **Divergence age selects the regime.** Below ~15 s the victim waits ~32 s; above ~30 s it reconciles in ~2 s. The threshold sits between and was never sampled.
 - **Within a regime, the clock runs from the restart.**
-- **Absence is irrelevant** once age is fixed: across 25/40/70 s outages, `repair_s` spans 1.35 s.
+- **Absence is irrelevant over 10–70 s outages** once age is fixed: `repair_s` spans 2.23 s across them. It is *not* irrelevant in general — at a young age, a 6 s outage gives 0.02 s or 43–53 s and an 18 s outage gave 3.3 s. Scope the claim or this study contradicts itself.
+- **The absence = 10 s cell is the only discriminating control in the experiment.** Step 1b fixes the outage at 40 s, which makes age and *where in the outage the write landed* perfectly collinear; that cell puts the write 4 s in (early, like the fast old-regime runs) at a young age, and repair is **slow** (31.3 s, 32.4 s). The rival "write position selects the regime" reading is refuted, and age survives.
 
 So: age is a **selector between two behaviours**, not an offset against a countdown.
 
@@ -44,7 +45,7 @@ The statistic was also checked for mechanical bias before being overturned: simu
 ## Reproducing
 
 ```bash
-python research/weaviate_repair_clock/repair_clock.py     # ~90 min, 53 runs
+python research/weaviate_repair_clock/repair_clock.py     # ~90 min, 55 runs
 python research/weaviate_repair_clock/analyze_clock.py    # reads committed JSON only
 ```
 

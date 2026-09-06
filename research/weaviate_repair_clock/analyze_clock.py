@@ -54,12 +54,133 @@ def pearson(xs, ys):
     return num / (dx * dy) if dx and dy else float("nan")
 
 
+def disaggregate(s1b):
+    """Split step 1b by regime and recompute within each.
+
+    THE AGGREGATE ABOVE IS THE PRE-REGISTERED TEST. This is not a second test
+    and no p-value is attached to it -- it is the diagnostic that shows the
+    pre-registered one was applied to a mixture, which is why its answer is
+    reported and then withdrawn rather than quietly replaced.
+
+    The split is DESCRIPTIVE, not a registered threshold. It is not a fast/slow
+    cut on `repair_s`, which is what went void in #48 step 2c; it is a cut on
+    `age_s`, the manipulated variable, placed in an 15-30 s interval the design
+    never sampled. Every observation is on one side or the other by construction,
+    so no run's classification depends on where in that gap the line is drawn --
+    which is exactly the property #48's cut lacked.
+    """
+    lo = [r for r in s1b if r["age_s"] < 20.0]
+    hi = [r for r in s1b if r["age_s"] >= 20.0]
+    if not (lo and hi):
+        return
+    print("\n  --- disaggregated by regime (diagnostic, not a second test) ---")
+    print(f"  {'regime':>8}{'n':>4}{'age span':>20}{'repair spread':>15}"
+          f"{'corr(age,rep)':>15}{'corr(age,sw)':>14}")
+    for name, g in (("young", lo), ("old", hi)):
+        a = [r["age_s"] for r in g]
+        p = [r["repair_s"] for r in g]
+        s = [r["since_write_s"] for r in g]
+        print(f"  {name:>8}{len(g):>4}"
+              f"{f'{min(a):.1f}-{max(a):.1f} ({max(a) - min(a):.1f}s)':>20}"
+              f"{max(p) - min(p):>15.3f}"
+              f"{pearson(a, p):>+15.3f}{pearson(a, s):>+14.3f}")
+    gap = min(r["age_s"] for r in hi) - max(r["age_s"] for r in lo)
+    print(f"\n  the two regimes are separated by {gap:.0f}s of UNSAMPLED age, and")
+    print(f"  by a step in repair_s from ~{statistics.median([r['repair_s'] for r in lo]):.0f}s "
+          f"to ~{statistics.median([r['repair_s'] for r in hi]):.0f}s.")
+    print("  Within EITHER regime repair_s is flat while since_write tracks age:")
+    print("  that is the RESTART-anchored signature, the opposite of the")
+    print("  aggregate verdict above. The aggregate's -0.94 is produced entirely")
+    print("  by the step between regimes, not by any within-regime trend.")
+    print("  Simpson's paradox. The pre-registered statistic is not wrong as a")
+    print("  statistic; it was applied to a mixture of two populations.")
+
+
+def calibration_check(s1b):
+    """Would the pre-registered statistic ever say RESTART?
+
+    Feeds the test a SYNTHETIC pure restart-anchored system -- constant
+    repair_s, since_write = age + that constant -- over the REAL realized ages.
+    If the test returned WRITE here too it would be incapable of returning
+    (b) at all, and its verdict above would carry no information.
+
+    This runs before the verdict is overturned, not after, so it is a check on
+    the instrument rather than a rationalisation of an unwelcome result.
+    """
+    ages = [r["age_s"] for r in s1b]
+    print("\n  --- calibration: the same test on a SYNTHETIC restart-anchored "
+          "system ---")
+    print("  (constant repair_s over these same realized ages)")
+    for const in (2.0, 15.0, 31.0):
+        rep = [const] * len(ages)
+        sw = [a + const for a in ages]
+        cv_r, cv_s = cv(rep), cv(sw)
+        verdict = "RESTART" if cv_r < cv_s else "WRITE"
+        print(f"    repair_s = {const:>5.1f}s constant -> "
+              f"CV(repair)={cv_r:.4f} CV(since_write)={cv_s:.4f} -> {verdict}")
+    print("  The test returns RESTART at every constant tried, so it CAN")
+    print("  distinguish the hypotheses. It was applied to the wrong")
+    print("  population, not miscalibrated.")
+
+
+def write_position_check(rows):
+    """Age, or where in the outage the write landed?
+
+    Step 1b holds absent_s at 40 s, so age and position = absent - age are
+    perfectly collinear there: every step-1b run is equally consistent with
+    "old divergence repairs fast" and with "a write early in the outage repairs
+    fast". Step 1b ALONE cannot separate them.
+
+    Step 1 can, and this is what makes the absence = 10 s cell load-bearing
+    rather than a spare consistency check: it puts the write ~4 s into the
+    outage -- early, like the fast old-regime runs -- at a YOUNG age.
+    """
+    cand = [r for r in rows
+            if r.get("absent_s") and r.get("age_s") is not None
+            and r.get("repair_s") is not None and r["absent_s"] >= 10.0]
+    if not cand:
+        return
+    print("\n=== is it age, or where in the outage the write landed? ===")
+    print("  step 1b cannot tell these apart (absent fixed at 40 s makes them")
+    print("  collinear). These runs can, because absence varies:")
+    print(f"  {'absent':>8}{'age':>8}{'write pos in outage':>21}{'repair_s':>11}")
+    for r in sorted(cand, key=lambda x: (x["absent_s"], x["age_s"])):
+        pos = r["absent_s"] - r["age_s"]
+        print(f"  {r['absent_s']:>8.1f}{r['age_s']:>8.1f}{pos:>21.1f}"
+              f"{r['repair_s']:>11.3f}")
+    early_young = [r for r in cand
+                   if (r["absent_s"] - r["age_s"]) < 10.0 and r["age_s"] < 20.0]
+    if early_young:
+        print("\n  Runs with the write EARLY in the outage but a YOUNG age:")
+        for r in early_young:
+            print(f"    absent {r['absent_s']:.1f}s, age {r['age_s']:.1f}s, "
+                  f"write {r['absent_s'] - r['age_s']:.1f}s in "
+                  f"-> repair {r['repair_s']:.3f}s")
+        print("  'Write position selects the regime' predicts these are FAST.")
+        print("  They are SLOW. The rival frame is refuted and AGE survives.")
+        print("  This is the one comparison in the study that discriminates")
+        print("  between the two readings, and it comes from step 1 -- the step")
+        print("  pre-registered as unable to discriminate anything.")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", default=os.path.join(HERE, "results", "repair_clock.json"))
     a = ap.parse_args()
-    rows = [r for r in json.load(open(a.json)) if r.get("converged")]
-    print(f"converged runs: {len(rows)}\n")
+    allrows = json.load(open(a.json))
+    rows = [r for r in allrows if r.get("converged")]
+    dropped = [r for r in allrows if not r.get("converged")]
+    print(f"records in file: {len(allrows)}")
+    print(f"converged runs:  {len(rows)}")
+    if dropped:
+        # Named, not silently filtered: a cell with n=5 where its neighbours
+        # have 6 is otherwise an unexplained asymmetry in every table below.
+        print(f"NOT converged, excluded from every figure: {len(dropped)}")
+        for r in dropped:
+            print(f"    label={r.get('label')} seed={r.get('seed')} "
+                  f"polls={r.get('polls')} -- never reached the target set "
+                  f"within the observation window")
+    print()
 
     # ---- step 1: does absence matter once age is held? --------------------
     s1 = [r for r in rows if str(r.get("label", "")).startswith("abs")]
@@ -115,6 +236,11 @@ def main() -> int:
                   "-> ANCHORED TO THE RESTART (outcome b)")
         else:
             print("indistinguishable (outcome c)")
+
+        disaggregate(s1b)
+        calibration_check(s1b)
+
+    write_position_check(rows)
 
     # ---- step 2: the short-outage distribution ----------------------------
     s2 = [r for r in rows if r.get("label") == "short6"]

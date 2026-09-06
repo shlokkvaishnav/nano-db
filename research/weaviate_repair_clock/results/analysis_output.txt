@@ -1,6 +1,9 @@
-converged runs: 54
+records in file: 55
+converged runs:  54
+NOT converged, excluded from every figure: 1
+    label=age15 seed=4004 polls=38 -- never reached the target set within the observation window
 
-=== step 1 — vary absence, age held (~6 s). Consistency check. ===
+=== step 1 â€” vary absence, age held (~6 s). Consistency check. ===
    realized absent  realized age   repair_s  since_write
               10.0           6.0     31.306       37.306
               10.0           6.0     32.400       38.401
@@ -23,7 +26,7 @@ converged runs: 54
   not an effect. Absence carries information only if repair_s
   moves materially.
 
-=== step 1b — outage held at 40 s, write-to-restart varied. THE discriminating step. ===
+=== step 1b â€” outage held at 40 s, write-to-restart varied. THE discriminating step. ===
     realized age   repair_s  since_write
              2.0     32.102       34.102
              2.0     32.710       34.713
@@ -64,7 +67,85 @@ converged runs: 54
 
   verdict: since_write is 5.8x steadier -> ANCHORED TO THE WRITE (outcome a)
 
-=== step 2 — 6 s outage, wall-clock recorded ===
+  --- disaggregated by regime (diagnostic, not a second test) ---
+    regime   n            age span  repair spread  corr(age,rep)  corr(age,sw)
+     young  17    2.0-15.0 (13.0s)          2.345         -0.267        +0.993
+       old  12    30.0-38.0 (8.0s)          1.451         -0.103        +0.991
+
+  the two regimes are separated by 15s of UNSAMPLED age, and
+  by a step in repair_s from ~32s to ~2s.
+  Within EITHER regime repair_s is flat while since_write tracks age:
+  that is the RESTART-anchored signature, the opposite of the
+  aggregate verdict above. The aggregate's -0.94 is produced entirely
+  by the step between regimes, not by any within-regime trend.
+  Simpson's paradox. The pre-registered statistic is not wrong as a
+  statistic; it was applied to a mixture of two populations.
+
+  --- calibration: the same test on a SYNTHETIC restart-anchored system ---
+  (constant repair_s over these same realized ages)
+    repair_s =   2.0s constant -> CV(repair)=0.0000 CV(since_write)=0.6897 -> RESTART
+    repair_s =  15.0s constant -> CV(repair)=0.0000 CV(since_write)=0.4203 -> RESTART
+    repair_s =  31.0s constant -> CV(repair)=0.0000 CV(since_write)=0.2839 -> RESTART
+  The test returns RESTART at every constant tried, so it CAN
+  distinguish the hypotheses. It was applied to the wrong
+  population, not miscalibrated.
+
+=== is it age, or where in the outage the write landed? ===
+  step 1b cannot tell these apart (absent fixed at 40 s makes them
+  collinear). These runs can, because absence varies:
+    absent     age  write pos in outage   repair_s
+      10.0     6.0                  4.0     31.306
+      10.0     6.0                  4.0     32.400
+      18.0     1.8                 16.2      3.330
+      25.0     6.0                 19.0     30.668
+      25.0     6.0                 19.0     31.517
+      25.0     6.0                 19.0     30.639
+      40.0     2.0                 38.0     32.102
+      40.0     2.0                 38.0     32.710
+      40.0     2.0                 38.0     31.520
+      40.0     2.0                 38.0     31.287
+      40.0     2.0                 38.0     32.395
+      40.0     2.0                 38.0     31.082
+      40.0     6.0                 34.0     30.734
+      40.0     6.0                 34.0     30.541
+      40.0     6.0                 34.0     32.355
+      40.0     6.0                 34.0     33.427
+      40.0     6.0                 34.0     32.138
+      40.0     6.0                 34.0     32.320
+      40.0     6.0                 34.0     32.267
+      40.0     6.0                 34.0     32.220
+      40.0    15.0                 25.0     31.195
+      40.0    15.0                 25.0     31.176
+      40.0    15.0                 25.0     31.082
+      40.0    15.0                 25.0     32.255
+      40.0    15.0                 25.0     32.145
+      40.0    30.0                 10.0      1.814
+      40.0    30.0                 10.0      2.078
+      40.0    30.0                 10.0      1.189
+      40.0    30.0                 10.0      2.266
+      40.0    30.0                 10.0      2.255
+      40.0    30.0                 10.0      1.201
+      40.0    37.4                  2.6      0.815
+      40.0    37.8                  2.2      0.909
+      40.0    38.0                  2.0      1.733
+      40.0    38.0                  2.0      2.188
+      40.0    38.0                  2.0      2.172
+      40.0    38.0                  2.0      2.165
+      70.0     6.0                 64.0     30.171
+      70.0     6.0                 64.0     30.561
+     137.4     0.2                137.2     19.397
+     191.8     0.1                191.7     30.416
+
+  Runs with the write EARLY in the outage but a YOUNG age:
+    absent 10.0s, age 6.0s, write 4.0s in -> repair 31.306s
+    absent 10.0s, age 6.0s, write 4.0s in -> repair 32.400s
+  'Write position selects the regime' predicts these are FAST.
+  They are SLOW. The rival frame is refuted and AGE survives.
+  This is the one comparison in the study that discriminates
+  between the two readings, and it comes from step 1 -- the step
+  pre-registered as unable to discriminate anything.
+
+=== step 2 â€” 6 s outage, wall-clock recorded ===
   n = 10: [0.011, 0.013, 0.018, 0.024, 0.026, 0.028, 43.126, 43.733, 50.779, 53.331]
   since_write: [1.97, 2.59, 4.01, 4.01, 4.03, 4.03, 46.92, 47.49, 54.71, 57.12]
   corr(phase mod   30s, repair_s) = -0.101

@@ -114,11 +114,44 @@ that overran is a valid observation at its realized offsets.
 
 ## Results
 
-53 runs. Analysis uses **realized** offsets per Amendment 1.
+**55 records in `results/repair_clock.json`; 54 converged; every figure below is over the 54.**
+
+The one excluded run is `age15`, seed 4004: `repair_s` null, `converged` false, 38 polls — it never reached the target set within its observation window. That is why the 15 s cell carries n = 5 where every other cell carries 6, and why the young regime is n = 17 rather than 18. *(Corrected in review round 1, which previously said "53 runs" — a count matching neither the file nor the analyzer — and did not disclose the exclusion.)*
+
+That a run failed to converge is itself a result worth #54's attention: it is a direct observation that repair can exceed the window you allot it, which is why #54 now records right-censoring rather than reading a non-recovery as a failure to heal.
+
+Analysis uses **realized** offsets per Amendment 1.
 
 ### Step 1 — absence carries no information (consistency check, as pre-registered)
 
-Holding write-to-restart at ~6 s and varying the outage across 25 / 40 / 70 s: **absence spans 60 s while `repair_s` spans 1.35 s** (30.171–31.517). Both hypotheses predicted this, so it discriminates nothing — but it does rule out absence as a variable in its own right.
+Holding write-to-restart at ~6 s and varying the outage across **10 / 25 / 40 / 70 s**: absence spans 60 s while `repair_s` spans **2.23 s** (30.171–32.400), over 9 on-spec runs.
+
+*(Corrected in review round 1. Both figures previously read "1.35 s (30.171–31.517) across 25/40/70", which silently dropped the pre-registered absence = 10 s cell — a range 40% narrower than `results/analysis_output.txt`, produced by the same script, printed three lines above it. The conclusion is unchanged: 2.23 s of spread against a ~30 s regime step is still no effect. The number now matches the artifact.)*
+
+Both hypotheses predicted a flat `repair_s` here, so this step discriminates *between them* nothing — as pre-registered. It does rule out absence as a variable in its own right **over 10–70 s at age ≈ 6 s**, which is the range actually tested; see "absence is not irrelevant everywhere" below. And it turns out to discriminate something else entirely, which the pre-registration did not anticipate:
+
+#### The absence = 10 s cell is the study's only discriminating control
+
+Step 1b holds the outage at 40 s. That makes realized age and **where in the outage the write landed** (`position = absent − age`) perfectly collinear, so *every step-1b observation is equally consistent with two readings*:
+
+- **age selects the regime** — an older divergence repairs fast; and
+- **write position selects the regime** — a write early in the outage repairs fast.
+
+Old-regime runs have the write ~2 s into the outage; young-regime runs ~38 s in. Step 1b **cannot** tell these apart, and nothing in the pre-registration noticed.
+
+The absence = 10 s cell can, because it varies absence: it places the write **4 s into the outage** — early, exactly like the fast old-regime runs — at a **young** age of 6 s.
+
+| absent | age | write position in outage | `repair_s` |
+|---|---|---|---|
+| 10 s | 6.0 s | **4.0 s (early)** | **31.306** |
+| 10 s | 6.0 s | **4.0 s (early)** | **32.400** |
+| 40 s | 38.0 s | 2.0 s (early) | 1.733–2.188 |
+
+Write-position predicts the first two rows are fast. They are slow, and by a factor of ~16. **The rival frame is refuted and age survives.**
+
+So the step pre-registered as *"cannot discriminate — it is a consistency check and is labelled as one"* contains the only comparison in the experiment that separates the two readings of the main result. That is an argument for keeping consistency checks that a design expects to be uninformative, and against reporting a narrower range than the data holds: the dropped cell was the load-bearing one.
+
+`write_position_check()` in `analyze_clock.py` computes this.
 
 ### Step 1b — the discriminating step
 
@@ -159,7 +192,23 @@ Wall-clock phase was recorded for the first time (#48 never captured it). Correl
 
 - **Divergence age selects the *regime*.** Below ~15 s the victim waits ~32 s; above ~30 s it reconciles in ~2 s. The threshold is somewhere in between and was not sampled.
 - **Within a regime the clock is anchored to the *restart*.** `repair_s` is flat over 13 s of age variation; `age + repair` is not.
-- **Absence is irrelevant** once age is fixed (step 1).
+- **Absence is irrelevant for outages of 10–70 s** once age is fixed (step 1). It is **not** irrelevant in general — see immediately below.
+
+#### Absence is not irrelevant everywhere, and this study contains the counterexample
+
+Corrected in review round 1; the bullet above previously read "absence is irrelevant" without qualification, in this document, `README.md` and the PR body. At a realized age inside the young band, this experiment holds three different behaviours:
+
+| absence | realized age | `repair_s` |
+|---|---|---|
+| 40 s (step 1b) | 2.0 s ×6 | 31.08 – 32.71 |
+| 6 s (`short6`) | 1.95 – 4.03 | 0.011 – 0.028 ×6, 43.1 – 53.3 ×4 |
+| 18 s (step 1, overran) | 1.83 s | 3.330 |
+
+Age is held inside the young band across all three rows and `repair_s` moves over three orders of magnitude. The honest statement is that absence carries no information **over the 10–70 s range step 1 tested, at age ≈ 6 s**.
+
+This is not a new concession — outcome (d) is *defined* in the Expected outcomes as "A behaves unlike B and C on every measure → outcome (iii); exclude short outages from the comparison and say why". The Interpretation simply failed to carry that exclusion into a bullet stated as general.
+
+The **18 s / age 1.83 s run at 3.330 s** deserves naming rather than leaving in a table. It is an overrun step-1 run, so it was never a planned cell; it sits at a young age with a repair that is neither the ~32 s young-regime wait nor the ~0.02 s `short6` fast mode nor the ~2 s old-regime value. It is a **third behaviour at a fourth absence**, from n = 1, and it is the clearest single indication that the two-regime picture is a description of the 40 s outage rather than a general law. It is reported, not explained.
 
 So the answer to "write or restart" is **neither, cleanly**: age acts as a *selector* between two behaviours rather than as an offset against a countdown, and within each behaviour the latency is measured from the restart.
 
