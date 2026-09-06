@@ -1,0 +1,18 @@
+[
+ {
+  "seed": 1,
+  "chaos": false,
+  "divergence": 5000,
+  "index_recall_before": null,
+  "index_recall_after": null
+ },
+ {
+  "seed": 1,
+  "chaos": true,
+  "divergence": 5000,
+  "index_recall_before": null,
+  "completeness_series": [],
+  "completeness_end": null,
+  "index_recall_after": null
+ }
+]
