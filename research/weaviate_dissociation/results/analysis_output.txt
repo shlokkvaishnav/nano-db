@@ -1,0 +1,68 @@
+runs: 10
+
+=== control: no chaos, same two snapshots ===
+        seed   before    after    drift
+    20260900    0.970    0.930   -0.040
+    20260901    0.980    0.945   -0.035
+    20260902    0.965    0.930   -0.035
+    20260903    0.980    0.915   -0.065
+    20260904    0.980    0.930   -0.050
+
+  max |drift| = 0.0650 over 5 seeds
+  The measurement is stable when nothing happens. That is what makes
+  a drop under chaos attributable to the chaos.
+
+=== chaos: the two axes, per seed ===
+        seed  IR before  IR after  IR delta  comp_end  censored  recovery_s
+    20260900      0.975     0.955    -0.020      0.60     right          --
+    20260901      0.980     0.945    -0.035      1.00      none       56.95
+    20260902      0.965     0.930    -0.035      1.00      none       60.55
+    20260903      0.975     0.925    -0.050      1.00      none       40.08
+    20260904      0.990     0.970    -0.020      0.17     right          --
+
+=== the paired comparison, corpus-matched seeds only ===
+        seed  ctl held  chaos held  matched  ctl delta  chaos delta  paired diff
+    20260900     10000        9500       NO     -0.040       -0.020       +0.020
+    20260901     10000       10000      yes     -0.035       -0.035       +0.000
+    20260902     10000       10000      yes     -0.035       -0.035       +0.000
+    20260903     10000       10000      yes     -0.065       -0.050       +0.015
+    20260904     10000        6748       NO     -0.050       -0.020       +0.030
+
+  corpus-matched pairs: n = 3   paired differences [0.0, 0.0, 0.015]
+  mean +0.0050 -- a NEGATIVE value would mean chaos lost MORE index_recall than its control
+  Chaos never loses more; in 2 of 3 the arms are IDENTICAL.
+
+  RESOLUTION: 20 queries x top-10 = 200 ground-truth items, so index_recall moves in steps of 1/200 = 0.0050.
+  Largest chaos-specific deficit consistent with these pairs: under ~0.020.
+  It does NOT exclude a deficit below the quantisation floor.
+  More queries per snapshot lowers that floor at no cluster cost,
+  and is the cheapest available improvement.
+
+  (unpaired, REFERENCE ONLY -- contaminated by the two unmatched seeds: baseline 0.9300 vs chaos 0.9450, p = 0.3016)
+
+=== the pre-registered dissociation, per seed ===
+  (completeness returned to 1.0 within the window AND the chaos arm lost MORE index_recall than its corpus-matched control)
+    seed 20260900: healed=False  chaos_delta=-0.020  control_delta=-0.040  graph_damaged_beyond_control=False  -> no  <- completeness RIGHT-CENSORED: did not finish inside the 60s window. 'Unknown', not 'did not heal'.
+    seed 20260901: healed=True  chaos_delta=-0.035  control_delta=-0.035  graph_damaged_beyond_control=False  -> no
+    seed 20260902: healed=True  chaos_delta=-0.035  control_delta=-0.035  graph_damaged_beyond_control=False  -> no
+    seed 20260903: healed=True  chaos_delta=-0.050  control_delta=-0.065  graph_damaged_beyond_control=False  -> no
+    seed 20260904: healed=False  chaos_delta=-0.020  control_delta=-0.050  graph_damaged_beyond_control=False  -> no  <- completeness RIGHT-CENSORED: did not finish inside the 60s window. 'Unknown', not 'did not heal'.
+
+  0 of 5 seeds show the dissociation.
+
+=== the horizon this cannot see past ===
+  index_recall_after is snapshotted when the 60s completeness window
+  closes. So the supported claim is 'at ~60s, completeness has healed
+  and index_recall has not' -- a statement about a HORIZON, not about
+  permanence. #37 is the precedent: Qdrant graph damage that a 50s
+  window called permanent was gone by 180s. A long-quiesce re-run is
+  the experiment that would settle it, and it has not been done.
+
+=== exploratory, NOT pre-registered, n=1 on the partial arm ===
+  seeds that fully repaired (n=3): mean IR delta -0.040
+  seed 20260900 repaired only 60% and lost -0.020
+  seed 20260904 repaired only 17% and lost -0.020
+  Less repair, less graph damage. That is the shape a mechanism
+  would have if the REPAIR is what damages the graph rather than
+  the outage -- but it rests on ONE partially-repaired seed and
+  is a hypothesis for a new pre-registration, not a finding.
