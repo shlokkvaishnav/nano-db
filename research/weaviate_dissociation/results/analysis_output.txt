@@ -2,36 +2,36 @@ runs: 10
 
 === control: no chaos, same two snapshots ===
         seed   before    after    drift
-    20260900    0.980    0.980    0.000
-    20260901    0.980    0.980    0.000
-    20260902    0.965    0.965    0.000
-    20260903    0.975    0.975    0.000
-    20260904    0.990    0.990    0.000
+    20260900    0.970    0.930   -0.040
+    20260901    0.980    0.945   -0.035
+    20260902    0.965    0.930   -0.035
+    20260903    0.980    0.915   -0.065
+    20260904    0.980    0.930   -0.050
 
-  max |drift| = 0.0000 over 5 seeds
+  max |drift| = 0.0650 over 5 seeds
   The measurement is stable when nothing happens. That is what makes
   a drop under chaos attributable to the chaos.
 
 === chaos: the two axes, per seed ===
         seed  IR before  IR after  IR delta  comp_end  censored  recovery_s
-    20260900      0.980     0.520    -0.460      1.00      none       38.19
-    20260901      0.975     0.460    -0.515      1.00      none       38.21
-    20260902      0.965     0.460    -0.505      1.00      none       36.79
-    20260903      0.975     0.515    -0.460      1.00      none       40.94
-    20260904      0.990     0.790    -0.200      0.30     right          --
+    20260900      0.975     0.955    -0.020      0.60     right          --
+    20260901      0.980     0.945    -0.035      1.00      none       56.95
+    20260902      0.965     0.930    -0.035      1.00      none       60.55
+    20260903      0.975     0.925    -0.050      1.00      none       40.08
+    20260904      0.990     0.970    -0.020      0.17     right          --
 
-  index_recall after -- baseline 0.9780 +/- 0.0091 | chaos 0.5490 +/- 0.1378
-  exact two-sided Mann-Whitney p = 0.0079   <- 0.0079 is the FLOOR at 5v5: complete separation, not a large effect
+  index_recall after -- baseline 0.9300 +/- 0.0106 | chaos 0.9450 +/- 0.0184
+  exact two-sided Mann-Whitney p = 0.3016   <- 0.0079 is the FLOOR at 5v5: complete separation, not a large effect
 
 === the pre-registered dissociation, per seed ===
-  (completeness returned to 1.0 within the window AND index_recall_after below every pre-chaos value)
-    seed 20260900: healed=True  graph_damaged=True  -> DISSOCIATION
-    seed 20260901: healed=True  graph_damaged=True  -> DISSOCIATION
-    seed 20260902: healed=True  graph_damaged=True  -> DISSOCIATION
-    seed 20260903: healed=True  graph_damaged=True  -> DISSOCIATION
-    seed 20260904: healed=False  graph_damaged=True  -> no  <- completeness RIGHT-CENSORED: did not finish inside the 60s window. 'Unknown', not 'did not heal'.
+  (completeness returned to 1.0 within the window AND the chaos arm lost MORE index_recall than its corpus-matched control)
+    seed 20260900: healed=False  chaos_delta=-0.020  control_delta=-0.040  graph_damaged_beyond_control=False  -> no  <- completeness RIGHT-CENSORED: did not finish inside the 60s window. 'Unknown', not 'did not heal'.
+    seed 20260901: healed=True  chaos_delta=-0.035  control_delta=-0.035  graph_damaged_beyond_control=False  -> no
+    seed 20260902: healed=True  chaos_delta=-0.035  control_delta=-0.035  graph_damaged_beyond_control=False  -> no
+    seed 20260903: healed=True  chaos_delta=-0.050  control_delta=-0.065  graph_damaged_beyond_control=False  -> no
+    seed 20260904: healed=False  chaos_delta=-0.020  control_delta=-0.050  graph_damaged_beyond_control=False  -> no  <- completeness RIGHT-CENSORED: did not finish inside the 60s window. 'Unknown', not 'did not heal'.
 
-  4 of 5 seeds show the dissociation.
+  0 of 5 seeds show the dissociation.
 
 === the horizon this cannot see past ===
   index_recall_after is snapshotted when the 60s completeness window
@@ -42,8 +42,9 @@ runs: 10
   the experiment that would settle it, and it has not been done.
 
 === exploratory, NOT pre-registered, n=1 on the partial arm ===
-  seeds that fully repaired (n=4): mean IR delta -0.485
-  seed 20260904 repaired only 30% and lost -0.200
+  seeds that fully repaired (n=3): mean IR delta -0.040
+  seed 20260900 repaired only 60% and lost -0.020
+  seed 20260904 repaired only 17% and lost -0.020
   Less repair, less graph damage. That is the shape a mechanism
   would have if the REPAIR is what damages the graph rather than
   the outage -- but it rests on ONE partially-repaired seed and

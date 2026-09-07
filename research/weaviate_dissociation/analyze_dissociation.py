@@ -109,19 +109,28 @@ def main() -> int:
     # ---- the pre-registered primary metric ----------------------------------
     print("\n=== the pre-registered dissociation, per seed ===")
     print("  (completeness returned to 1.0 within the window"
-          " AND index_recall_after below every pre-chaos value)")
-    floor = min(prechaos)
+          " AND the chaos arm lost MORE index_recall than its corpus-matched control)")
+    # The reference is the CORPUS-MATCHED CONTROL's drop, not the pre-chaos
+    # value. Amendment 3 made both arms end at 10,000 objects, and doubling the
+    # corpus costs ~0.05 of recall on its own -- so "index_recall_after is below
+    # every pre-chaos value" is satisfied by the CONTROL too, and testing it
+    # that way manufactures a dissociation out of the corpus-size effect.
+    # Chaos must lose MORE than the matched control loses.
+    ctl_drift = {r["seed"]: ir(r, "after") - ir(r, "before") for r in base}
     hits = 0
     for r in sorted(chaos, key=lambda x: x["seed"]):
         healed = r.get("completeness_end") == 1.0
-        damaged = ir(r, "after") < floor
+        my_delta = ir(r, "after") - ir(r, "before")
+        ref = ctl_drift.get(r["seed"])
+        damaged = (ref is not None) and (my_delta < ref)
         ok = healed and damaged
         hits += bool(ok)
         note = ""
         if not healed and r.get("censored") == "right":
             note = ("  <- completeness RIGHT-CENSORED: did not finish inside the "
                     "60s window. 'Unknown', not 'did not heal'.")
-        print(f"    seed {r['seed']}: healed={healed}  graph_damaged={damaged}"
+        print(f"    seed {r['seed']}: healed={healed}  chaos_delta={my_delta:+.3f}"
+              f"  control_delta={ref:+.3f}  graph_damaged_beyond_control={damaged}"
               f"  -> {'DISSOCIATION' if ok else 'no'}{note}")
     print(f"\n  {hits} of {len(chaos)} seeds show the dissociation.")
 

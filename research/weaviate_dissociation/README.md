@@ -1,38 +1,32 @@
 # The Weaviate dissociation experiment
 
-Issue #54 · branch `experiment/weaviate-dissociation` · **Outcome (a): the dissociation holds, at a 60 s horizon.**
+Issue #54 · branch `experiment/weaviate-dissociation` · **Outcome (i): both axes heal. The dissociation does NOT hold.**
 
 ## The result
 
-| seed | `index_recall` before → after | `completeness` end | censored | recovery |
-|---|---|---|---|---|
-| 20260900 | 0.980 → 0.520 | **1.00** | none | 38.19 s |
-| 20260901 | 0.975 → 0.460 | **1.00** | none | 38.21 s |
-| 20260902 | 0.965 → 0.460 | **1.00** | none | 36.79 s |
-| 20260903 | 0.975 → 0.515 | **1.00** | none | 40.94 s |
-| 20260904 | 0.990 → 0.790 | 0.30 | **right** | — |
+| seed | control drift | chaos delta | `completeness` | censored | recovery |
+|---|---|---|---|---|---|
+| 20260900 | −0.040 | **−0.020** | 0.60 | right | — |
+| 20260901 | −0.035 | **−0.035** | **1.00** | none | 56.95 s |
+| 20260902 | −0.035 | **−0.035** | **1.00** | none | 60.55 s |
+| 20260903 | −0.065 | **−0.050** | **1.00** | none | 40.08 s |
+| 20260904 | −0.050 | **−0.020** | 0.17 | right | — |
 
-**The control drifts by exactly 0.0000** across all five no-chaos seeds — same two snapshots, same interval, no chaos. That is what makes the drop attributable to the chaos rather than to the measurement.
+**In no seed does chaos cost more `index_recall` than the corpus-matched control.** `index_recall` after: baseline 0.9300 ± 0.0106 vs chaos 0.9450 ± 0.0184, **p = 0.3016** — no separation, nominally in the wrong direction. **The dissociation is met in 0 of 5 seeds.**
 
-`index_recall` after: baseline **0.9780 ± 0.0091** vs chaos **0.5490 ± 0.1378**, disjoint, **p = 0.0079** (the floor at 5 v 5 — complete separation, not a large effect; the effect size is the ~**−0.5** delta on a 0–1 metric).
+In the three seeds where repair completed, the chaos arm's `index_recall` landed on its control's value — twice to the third decimal. Same corpus, same size: the graph is as good after chaos-plus-repair as after the same writes with no chaos.
 
-**The pre-registered dissociation holds in 4 of 5 seeds.** The fifth is **right-censored**, not negative: its completeness series had reached 30% when the window closed, so it says *unknown*, not *did not heal*. Amendment 1 is what makes that distinction available.
+The residual −0.05 is **corpus size, not damage**: doubling the index 5,000 → 10,000 costs that much with no chaos anywhere.
 
-In those four seeds the victim ends the window holding **every** object it missed — exact id-set equality — while its graph quality sits at about half its own pre-chaos value. Same replica, same window, same instrument. The data came back; the graph did not.
+## Why the first answer was wrong
 
-**The window was set from another study's prediction and it held.** Realized divergence age was 0.277–0.329 s, placing every run in #56's *young* regime as Amendment 1 predicted by construction; observed recovery was 36.79–40.94 s against #56's ~32 s prediction.
+The first sweep reported `index_recall` collapsing 0.975 → 0.49 and called it outcome (a). It was **dilution**: ground truth covered 5,000 objects while the replica answered from 10,000 after repair. Verified on one replica at one moment — **0.495 → 0.935** once ground truth covered the full corpus. A parameter-free model predicted all five original values to within 0.027.
 
-## What this is not
+That sweep's control drifted **0.0000**, which looked like strong evidence and was actually the tell: it was not corpus-matched, so it could not see the effect that produced the entire result.
 
-**It is a claim about a 60 s horizon, not about permanence.** `index_recall` is snapshotted when the completeness window closes. #37 is the standing precedent: Qdrant graph damage that a 50 s window called permanent was **gone by 180 s**, and that claim had to be withdrawn. The long-quiesce re-run is the most valuable follow-up in the project.
+## What this does not say
 
-One host, one topology, one build, five seeds, an undocumented internal API, and the n = 5 floor. The mechanism is not observed — only its effect on a probe.
-
-## The most interesting thing in the data, and it is exploratory
-
-The censored seed is the only one that did not fully repair (30%) and also the one with the **smallest** graph damage: −0.200 against a mean of −0.485 across the four that fully repaired.
-
-Less repair, less damage. That is the shape a mechanism would have **if the repair itself damages the graph rather than the outage** — which would also explain why the damage here (−0.5) dwarfs Qdrant's (−0.012), a system with no graph-level anti-entropy to run. It rests on **one** partially-repaired seed, was not pre-registered, and is filed as a hypothesis for a new spec rather than a finding.
+Two of five seeds are **right-censored** (repair at 60% and 17% when the window closed), and recovery now runs 40.08–60.55 s, so **the 60 s window is marginal** — the negative rests on three uncensored seeds. It is a **60 s horizon**, n = 5, one host, one build. With ~0.05 of corpus-size drift, this excludes a large residual deficit, not a small one.
 
 The experiment the four Weaviate method studies (#41, #43, #46, #48) were built to make runnable, and the only one that tests this project's **field-level** claim rather than a within-system one.
 

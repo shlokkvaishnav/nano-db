@@ -2,7 +2,7 @@
 
 **Branch:** `experiment/weaviate-dissociation`
 **Date opened:** 2026-09-06
-**Status:** COMPLETE — outcome (a). The dissociation holds in 4 of 5 seeds (the fifth right-censored, not negative): `completeness` returns to exactly 1.0 while `index_recall` falls ~0.5, disjoint at p = 0.0079, against a no-chaos control with 0.0000 drift. **A claim about a 60 s horizon, not about permanence** — see Interpretation.
+**Status:** COMPLETE — **outcome (i): both axes heal.** The dissociation is met in 0 of 5 seeds once `index_recall` is scored over the full corpus and compared against a corpus-matched control. The earlier −0.5 "graph damage" was dilution. A 60 s horizon, n = 5, two seeds right-censored.
 
 Issue: closes #54. Body copied verbatim below (per `research/AGENT_PIPELINE.md`'s implementer instructions — this is the issue text unmodified, not a paraphrase).
 
@@ -304,77 +304,65 @@ under any circumstances.
 
 ## Results
 
-**Outcome (a). 10 of 10 runs, no aborts. The dissociation holds in 4 of 5 seeds; the fifth is censored, not negative.**
+**Outcome (i): BOTH AXES HEAL. The dissociation does not hold on Weaviate.** 10 of 10 runs, no aborts, after four amendments and three discarded sweeps.
 
-### The control first
+### The corpus-matched control is the whole story
 
-A graph axis that drifts on its own has nothing to say about a graph axis that drops under chaos. Across all five no-chaos seeds, `index_recall` before and after the identical pair of snapshots:
+| seed | control before → after | control drift | chaos before → after | chaos delta | `completeness` | censored | recovery |
+|---|---|---|---|---|---|---|---|
+| 20260900 | 0.970 → 0.930 | −0.040 | 0.975 → 0.955 | **−0.020** | 0.60 | right | — |
+| 20260901 | 0.980 → 0.945 | −0.035 | 0.980 → 0.945 | **−0.035** | **1.00** | none | 56.95 s |
+| 20260902 | 0.965 → 0.930 | −0.035 | 0.965 → 0.930 | **−0.035** | **1.00** | none | 60.55 s |
+| 20260903 | 0.980 → 0.915 | −0.065 | 0.975 → 0.925 | **−0.050** | **1.00** | none | 40.08 s |
+| 20260904 | 0.980 → 0.930 | −0.050 | 0.990 → 0.970 | **−0.020** | 0.17 | right | — |
 
-| seed | before | after | drift |
-|---|---|---|---|
-| 20260900 | 0.980 | 0.980 | **0.000** |
-| 20260901 | 0.980 | 0.980 | **0.000** |
-| 20260902 | 0.965 | 0.965 | **0.000** |
-| 20260903 | 0.975 | 0.975 | **0.000** |
-| 20260904 | 0.990 | 0.990 | **0.000** |
+**In no seed does chaos cost more `index_recall` than the corpus-matched control costs.** Mean chaos delta −0.032 against mean control drift −0.045. `index_recall` after: baseline 0.9300 ± 0.0106 vs chaos 0.9450 ± 0.0184, **p = 0.3016** — no separation, and nominally in the *wrong* direction.
 
-Max |drift| = **0.0000**. The instrument that Amendment 2 had to rebuild is now exactly stable when nothing happens, which is what makes any drop attributable to the chaos rather than to the measurement.
+**The pre-registered dissociation is met in 0 of 5 seeds.**
 
-### The two axes
+In the three seeds where repair completed — `completeness` exactly 1.0, victim holding all 10,000 objects — the chaos arm's `index_recall` landed on its control's value **to the third decimal in two of them** (−0.035 vs −0.035, twice). Same corpus, same size, same measurement: the graph is as good after chaos-plus-repair as it is after the same writes with no chaos at all.
 
-| seed | IR before | IR after | IR delta | `completeness` end | censored | recovery |
-|---|---|---|---|---|---|---|
-| 20260900 | 0.980 | 0.520 | **−0.460** | **1.00** | none | 38.19 s |
-| 20260901 | 0.975 | 0.460 | **−0.515** | **1.00** | none | 38.21 s |
-| 20260902 | 0.965 | 0.460 | **−0.505** | **1.00** | none | 36.79 s |
-| 20260903 | 0.975 | 0.515 | **−0.460** | **1.00** | none | 40.94 s |
-| 20260904 | 0.990 | 0.790 | −0.200 | 0.30 | **right** | — |
+### Where the entire original effect went
 
-`index_recall` after: baseline **0.9780 ± 0.0091** against chaos **0.5490 ± 0.1378**, disjoint, exact two-sided Mann-Whitney **p = 0.0079** — the floor at 5 v 5, meaning complete separation, not a large effect. The effect size is carried by the deltas, which are around **−0.5 on a 0–1 metric**.
+The −0.05 drop that remains is **corpus size, not damage**, and the control proves it: doubling the index from 5,000 to 10,000 objects costs 0.035–0.065 of recall with no chaos anywhere. The first sweep's "0.0000 drift" control could not see this because it was not corpus-matched.
 
-**The pre-registered primary metric — completeness returns to 1.0 *and* post-chaos `index_recall` falls outside its own pre-chaos range — is met in 4 of 5 seeds.** The fifth, 20260904, is **right-censored**: its completeness series had reached only 30% when the 60 s window closed, so it answers "did it heal within 60 s" with *unknown*, not with *no*. Amendment 1 is what makes that distinction available; without it the run would have been recorded as a failure to heal.
+The original −0.5 "graph damage" was dilution (Amendment 3), verified on one replica at one moment: **0.495 → 0.935** when ground truth was corrected to cover the full corpus.
 
-### The window was set correctly
+### The primary metric as written was also wrong
 
-Realized divergence age was **0.277–0.329 s** across all five chaos runs — every one in #56's *young* regime, as Amendment 1 predicted by construction. Observed recovery: **36.79–40.94 s**, against #56's young-regime prediction of ~32 s and its observed 19.4–33.4 s range. Slightly slower than predicted and comfortably inside the 60 s window, with the one exception being the censored seed.
+Recorded because the correction changes the answer. The registered test — *"post-chaos `index_recall` is outside its own pre-chaos range"* — is satisfied by the **control** too, once both arms end at 10,000 objects, because the corpus-size effect alone pushes it outside that range. Scored that way the data reports 3 of 5 "dissociations" that are nothing but corpus size.
 
-That is a cross-study prediction made in advance from a different experiment's data and borne out.
+The test that answers the question is **paired against the matched control**: does chaos lose *more* than the control loses? That is what `analyze_dissociation.py` now computes, and the answer is no, in five seeds out of five.
+
+### What the design still cannot say
+
+Two of five seeds are **right-censored** — repair had reached 60% and 17% when the window closed. Observed recovery is **40.08–60.55 s**, against ~38 s in the pre-Amendment-4 sweep, so **the 60 s window is now marginal rather than comfortable** and one uncensored seed finished 0.55 s past nominal. The negative rests on three uncensored seeds. A longer window is required before this is a clean five.
+
+And this remains a **60 s horizon**: nothing here observes what either axis does at 180 s.
 
 ## Interpretation
 
-**On the one system in this project with real anti-entropy, object-level repair restores the data and does not restore the graph — at a 60 second horizon.**
+**The project's central structural prediction is not confirmed on the one system that can test it.**
 
-That is the field-level claim `RELATED_WORK.md` positions the contribution around, and it is the first direct test of it. Qdrant and nano-db both lack graph-level repair to observe, so neither could answer it.
+`RELATED_WORK.md` §4 argues that anti-entropy operates on exact object identity, that two correct HNSW graphs over identical data differ bit-for-bit, and therefore that object-level repair *cannot* restore graph quality. The sharp prediction was: missing objects come back, graph quality does not.
 
-**The strongest form of the evidence is the conjunction within a single run.** In four seeds the victim ends the window holding **every** object it missed — `completeness` exactly 1.0, an id-set equality, not a threshold — while its `index_recall` sits at roughly half its own pre-chaos value. Same replica, same window, same instrument. The data came back; the graph did not.
+On Weaviate, at 60 s, **both come back**. In the seeds where repair completed, graph quality is indistinguishable from a no-chaos run over the same corpus.
 
-### What this does NOT establish, and the precedent that says so
+The structural argument is not thereby refuted — it says repair cannot *target* the index, which remains true. What the data shows is that it does not need to: re-inserting the objects appears to rebuild enough of the graph as a side effect that no residual deficit is measurable at this precision. That is exactly null hypothesis **(i)** as pre-registered — *"Weaviate's repair rebuilds enough of the index as a side effect of re-inserting objects that graph quality recovers too"* — and the spec commits to reporting it at least as prominently as a positive result.
 
-**It is a claim about a horizon, not about permanence.** `index_recall_after` is snapshotted when the 60 s completeness window closes. Nothing here shows the graph damage is permanent, and this project has already been burned by exactly this inference: #37 found that Qdrant graph damage which a 50 s window called permanent was **gone by 180 s**, and the claim had to be withdrawn. The supported sentence is *"at ~60 s, completeness has healed and index_recall has not."* Anything stronger is unsupported by this design.
+**This does not generalize to the other systems.** nano-db has no anti-entropy, and its divergence is committed and reproduced (#53). Qdrant's replica-level `index_recall` divergence stands (#31), and heals at 180 s (#37). What falls is the claim that a system *with* real anti-entropy would show the data axis healing while the graph axis does not.
 
-**It is one host, one topology, five seeds, one Weaviate build**, on an undocumented internal API, at the n = 5 statistical floor.
-
-**The mechanism is not observed.** No Weaviate-internal repair process was instrumented; only its effect on a probe.
-
-**The instrument is asymmetric**, and that asymmetry is now weaker than the spec claimed rather than permanent — see Amendment 2c. `completeness` is a 1 s series; `index_recall` is two endpoints. A dissociation between a series and a pair of snapshots is weaker evidence than one between two series, and must never be written as though both axes were watched continuously.
-
-### One exploratory observation, flagged as such
-
-The censored seed is the only one that did not fully repair — it reached 30% — and it is also the one with the **smallest** graph damage: −0.200 against a mean of −0.485 across the four that fully repaired.
-
-Less repair, less graph damage. That is the shape a mechanism would have **if the repair itself is what damages the graph, rather than the outage**. It would also explain why the damage is so much larger here (−0.5) than on Qdrant (−0.012), which has no graph-level anti-entropy to run.
-
-This rests on **one** partially-repaired seed, was not pre-registered, and is a hypothesis for a new specification rather than a finding. It is recorded because it is the most interesting thing in the data and because filing it now, before any follow-up, is what keeps it from being reported later as though it had been predicted.
+**Precision bounds the claim.** With ~0.05 of corpus-size drift and n = 5, this study can exclude a large residual deficit; it cannot exclude one smaller than a few points of recall. "Both heal" means "no deficit resolvable at this precision", not "provably identical".
 
 ## Decision
 
-**MERGE**, as outcome (a).
+**MERGE**, as outcome (i), and revise `RELATED_WORK.md` §4 and the README's HYPOTHESIS box to match.
 
-**What must not be claimed.** That the graph damage is permanent — measured at one 60 s horizon, and #37 is the standing counterexample. That repair *causes* the damage — one seed, exploratory. That this generalizes beyond one host, one build, one topology, five seeds. That both axes were watched continuously — they were not, and the writeup must carry the asymmetry in the claim itself.
+**What must not be claimed.** That the dissociation is refuted in general — one system, one build, 60 s, n = 5, two seeds censored. That Weaviate's repair rebuilds the graph *by design* — the mechanism is not observed, only its effect. That the earlier −0.5 result meant anything — it was dilution, and it is retired.
 
 **Consequences to file.**
 
-1. `experiment/*` — **the long-quiesce re-run.** Hold the observation open for 180 s or more after repair completes and re-snapshot `index_recall`. This is the single most valuable follow-up in the project: it converts "has not healed at 60 s" into either "does not heal" or a second withdrawn claim, and #37 says the difference is real.
-2. `experiment/*` — **does repair cause the damage?** Vary the fraction of the divergence set that is allowed to repair before snapshotting, and see whether graph damage tracks it. Pre-register before looking again at the seed that suggested it.
-3. `method/*` — **`index_recall` may not have to be snapshot-only.** Amendment 2c showed isolation is reversible in seconds via `docker pause`, where #41 measured ~10 minutes with `docker stop` and this spec inherited that as permanent. If it holds, the Weaviate leg could report two series instead of a series and two endpoints, which is a materially stronger design.
-4. `method/*` — **`characterize.write_objects()` reports success on a fully failed batch.** It checks only the batch's HTTP status, and Weaviate returns 200 with per-object `result.errors`. Observed here writing nothing while reporting success. Shared code, also used by #48 and #56.
+1. `analysis/*` — **revise `RELATED_WORK.md` §4 and the README HYPOTHESIS box.** The dissociation moves from "predicted, untested" to "tested on one system with real anti-entropy and not observed."
+2. `experiment/*` — **re-run with a 180 s window.** Recovery now runs to 60.55 s, so the current window is marginal and two seeds censored; a longer window also answers the horizon question #37 raised.
+3. `method/*` — **`index_recall` should be measured under a filtered search restricted to the base set.** The two axes are entangled through corpus size: the chaos arm's final corpus size *is* the dependent variable, so a corpus-matched control only works when repair completes. Filtering removes the coupling.
+4. `method/*` — **`internal_api.shard_name()` is not scoped to a class** (Amendment 4a), and **`characterize.write_objects()` reports success on a batch in which every object failed** (Amendment 2b). Both are shared code used by #43/#46/#48/#56.
