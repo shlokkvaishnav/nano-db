@@ -357,7 +357,31 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
     which a presence probe cannot see.
     """
     base_ids, base_vecs = corpus(seed, DIVERGENCE, offset=0)
-    div_ids, _ = corpus(seed, DIVERGENCE, offset=DIVERGENCE)
+    div_ids, div_vecs = corpus(seed, DIVERGENCE, offset=DIVERGENCE)
+    # Amendment 3 (review round 1). GROUND TRUTH MUST COVER EVERYTHING THE
+    # REPLICA MIGHT HOLD, not just the base set.
+    #
+    # index_recall is defined -- in this project and in this file's own
+    # docstring -- as the replica's ANN answer against exact search over ITS OWN
+    # DATA. Scored against base_ids alone it was exact search over PART of its
+    # own data: after repair the victim also holds the 5,000-object divergence
+    # set, in the same class and the same HNSW index, so Weaviate drew its
+    # nearest ten from up to 10,000 objects while ground truth drew from 5,000.
+    # Every returned divergence object counted as a miss although it was simply
+    # something ground truth was never told about.
+    #
+    # The measured drop was fully explained by that: predicted recall
+    # 5000/(5000 + 5000*completeness) matched all five seeds to a mean absolute
+    # error of 0.027, with no free parameters -- including the partially
+    # repaired seed the writeup had read as a mechanism hint.
+    #
+    # objects_present_ids() reports which of these the replica actually holds,
+    # so passing the union makes held_idx resolve to the right subset in BOTH
+    # arms and BOTH snapshots: the before-snapshot is unaffected (the divergence
+    # set does not exist yet) and the control is unaffected (it never writes
+    # one).
+    all_ids = list(base_ids) + list(div_ids)
+    all_vecs = np.concatenate([base_vecs, div_vecs], axis=0)
     rng = np.random.default_rng(seed + 1)
     queries = rng.standard_normal((20, t.VECTOR_DIM)).astype(np.float32)
     rec = {"seed": seed, "chaos": chaos, "divergence": DIVERGENCE,
@@ -383,7 +407,7 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
 
     log("  index_recall snapshot BEFORE (isolation probe, ~10 min node health)")
     rec["index_recall_before"] = index_recall_snapshot(
-        VICTIM, shard, base_ids, base_vecs, queries, dry, distance)
+        VICTIM, shard, all_ids, all_vecs, queries, dry, distance)
     if not dry:
         rec["class_count_after_base_write"] = class_count()
     # THE POSITIVE CONTROL the spec never had. If a healthy, untouched replica
@@ -454,9 +478,28 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
         rec["completeness_end"] = (last / DIVERGENCE) if last is not None else None
         rec.update(recovery_with_censoring(series))
 
+    else:
+        # Amendment 3: THE CONTROL MUST BE CORPUS-MATCHED.
+        #
+        # Review round 1 found the arms differed in corpus size as well as in
+        # chaos: the control searched 5,000 objects while the chaos arm searched
+        # up to 10,000 after repair. Fixing ground truth (above) removes the
+        # bookkeeping half of that, but ANN recall depends on how many objects
+        # are in the index, so a 5,000-object control still is not a baseline for
+        # a 10,000-object treatment.
+        #
+        # The control therefore writes the SAME divergence set, with every
+        # replica up. Both arms end at 10,000 objects and differ in exactly one
+        # thing: whether the victim was down while that set was written.
+        log(f"  control: write the same {DIVERGENCE} ids with NO outage "
+            "(corpus-matched baseline)")
+        if not dry:
+            write_objects(div_ids, seed + DIVERGENCE, consistency="ALL")
+            time.sleep(5)
+
     log("  index_recall snapshot AFTER")
     rec["index_recall_after"] = index_recall_snapshot(
-        VICTIM, shard, base_ids, base_vecs, queries, dry, distance)
+        VICTIM, shard, all_ids, all_vecs, queries, dry, distance)
     return rec
 
 
