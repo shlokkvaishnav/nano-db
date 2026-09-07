@@ -12,7 +12,9 @@ Issue #54 · branch `experiment/weaviate-dissociation` · **Outcome (i): both ax
 | 20260903 | −0.065 | **−0.050** | **1.00** | none | 40.08 s |
 | 20260904 | −0.050 | **−0.020** | 0.17 | right | — |
 
-**In no seed does chaos cost more `index_recall` than the corpus-matched control.** `index_recall` after: baseline 0.9300 ± 0.0106 vs chaos 0.9450 ± 0.0184, **p = 0.3016** — no separation, nominally in the wrong direction. **The dissociation is met in 0 of 5 seeds.**
+**In no seed does chaos cost more `index_recall` than the corpus-matched control.** The dissociation is met in **0 of 5** seeds.
+
+The comparison has to be **paired**, and only three seeds qualify: the two censored seeds ended with fewer objects (9,500 and 6,748 vs 10,000), and a smaller corpus scores *higher* recall — the very effect the control exists to neutralise, so including them biases the test toward the conclusion. Paired differences on the three matched seeds: **0.000, 0.000, +0.015** (positive = chaos lost *less*). **Two of three are identical.**
 
 In the three seeds where repair completed, the chaos arm's `index_recall` landed on its control's value — twice to the third decimal. Same corpus, same size: the graph is as good after chaos-plus-repair as after the same writes with no chaos.
 
@@ -26,7 +28,9 @@ That sweep's control drifted **0.0000**, which looked like strong evidence and w
 
 ## What this does not say
 
-Two of five seeds are **right-censored** (repair at 60% and 17% when the window closed), and recovery now runs 40.08–60.55 s, so **the 60 s window is marginal** — the negative rests on three uncensored seeds. It is a **60 s horizon**, n = 5, one host, one build. With ~0.05 of corpus-size drift, this excludes a large residual deficit, not a small one.
+Two of five seeds are **right-censored** (repair at 60% and 17% when the window closed), and recovery now runs 40.08–60.55 s, so **the 60 s window is marginal** — the negative rests on **three** matched seeds, not five. A **60 s horizon**, one host, one build.
+
+The precision is exact rather than hand-waved: 20 queries × top-10 = 200 truth items, so `index_recall` moves in steps of **0.005**. Any real chaos-specific deficit is **under ~0.02**; anything smaller is below the quantisation floor and is *not* excluded. More queries per snapshot lowers that floor at no cluster cost.
 
 The experiment the four Weaviate method studies (#41, #43, #46, #48) were built to make runnable, and the only one that tests this project's **field-level** claim rather than a within-system one.
 

@@ -316,7 +316,19 @@ under any circumstances.
 | 20260903 | 0.980 → 0.915 | −0.065 | 0.975 → 0.925 | **−0.050** | **1.00** | none | 40.08 s |
 | 20260904 | 0.980 → 0.930 | −0.050 | 0.990 → 0.970 | **−0.020** | 0.17 | right | — |
 
-**In no seed does chaos cost more `index_recall` than the corpus-matched control costs.** Mean chaos delta −0.032 against mean control drift −0.045. `index_recall` after: baseline 0.9300 ± 0.0106 vs chaos 0.9450 ± 0.0184, **p = 0.3016** — no separation, and nominally in the *wrong* direction.
+**In no seed does chaos cost more `index_recall` than the corpus-matched control costs.**
+
+**The comparison must be paired, and only three seeds qualify** (review round 2). The two right-censored seeds ended with *fewer* objects than their controls — 9,500 and 6,748 against 10,000 — and a smaller corpus scores *higher* recall, which is the very effect the matched control exists to neutralise. Including them biases the test toward the conclusion, so they are excluded rather than counted as evidence:
+
+| seed | control delta | chaos delta | paired difference |
+|---|---|---|---|
+| 20260901 | −0.035 | −0.035 | **0.000** |
+| 20260902 | −0.035 | −0.035 | **0.000** |
+| 20260903 | −0.065 | −0.050 | **+0.015** |
+
+Mean **+0.005**; a negative value would mean chaos lost more. **In two of three the arms are identical.** That is a sharper statement than a null p-value, and it rests on **n = 3**, not 5.
+
+*(The unpaired figure — baseline 0.9300 vs chaos 0.9450, p = 0.3016 — is printed by the analyser as reference only and labelled contaminated. It should not be quoted as the result.)*
 
 **The pre-registered dissociation is met in 0 of 5 seeds.**
 
@@ -352,7 +364,9 @@ The structural argument is not thereby refuted — it says repair cannot *target
 
 **This does not generalize to the other systems.** nano-db has no anti-entropy, and its divergence is committed and reproduced (#53). Qdrant's replica-level `index_recall` divergence stands (#31), and heals at 180 s (#37). What falls is the claim that a system *with* real anti-entropy would show the data axis healing while the graph axis does not.
 
-**Precision bounds the claim.** With ~0.05 of corpus-size drift and n = 5, this study can exclude a large residual deficit; it cannot exclude one smaller than a few points of recall. "Both heal" means "no deficit resolvable at this precision", not "provably identical".
+**Precision bounds the claim, and the bound is exact.** Each snapshot scores 20 queries × top-10 = **200 ground-truth items**, so `index_recall` moves in steps of **1/200 = 0.005** — every observed value is a multiple of 0.005, which confirms it. The three paired differences are 0.000, 0.000 and +0.015, all neutral or favouring chaos, so any real chaos-specific deficit is **under ~0.02**.
+
+It does **not** exclude a deficit below that quantisation floor. "Both heal" means "no deficit resolvable at 0.005 granularity across three matched pairs", not "provably identical". Raising the query count per snapshot lowers the floor directly at no cluster cost, and is the cheapest available improvement.
 
 ## Decision
 

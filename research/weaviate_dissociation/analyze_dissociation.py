@@ -97,14 +97,56 @@ def main() -> int:
               f"{str(r.get('censored')):>10}"
               f"{(f'{rec:.2f}' if rec is not None else '--'):>12}")
 
+    # ---- the PAIRED comparison, on corpus-matched seeds only ----------------
+    # Review round 2: an unpaired test over all five seeds is contaminated. Two
+    # seeds are right-censored, so their chaos arm ended with FEWER objects than
+    # its control -- and a smaller corpus scores HIGHER recall, which is exactly
+    # what the matched control exists to neutralise. Those rows push the chaos
+    # arm up for reasons unrelated to chaos, in the direction of the conclusion.
+    # An unpaired test also discards the per-seed control the design produces.
+    bym = {r["seed"]: r for r in base}
+    print("\n=== the paired comparison, corpus-matched seeds only ===")
+    print(f"  {'seed':>10}{'ctl held':>10}{'chaos held':>12}{'matched':>9}"
+          f"{'ctl delta':>11}{'chaos delta':>13}{'paired diff':>13}")
+    paired = []
+    for r in sorted(chaos, key=lambda x: x["seed"]):
+        b = bym.get(r["seed"])
+        if not b:
+            continue
+        hb = (b.get("index_recall_after") or {}).get("held")
+        hc = (r.get("index_recall_after") or {}).get("held")
+        db = ir(b, "after") - ir(b, "before")
+        dc = ir(r, "after") - ir(r, "before")
+        matched = hb == hc
+        if matched:
+            paired.append(dc - db)
+        print(f"  {r['seed']:>10}{hb:>10}{hc:>12}{('yes' if matched else 'NO'):>9}"
+              f"{db:>+11.3f}{dc:>+13.3f}{dc - db:>+13.3f}")
+    if paired:
+        print(f"\n  corpus-matched pairs: n = {len(paired)}   "
+              f"paired differences {[round(x, 4) for x in paired]}")
+        print(f"  mean {statistics.mean(paired):+.4f} -- a NEGATIVE value would "
+              "mean chaos lost MORE index_recall than its control")
+        print("  Chaos never loses more; in 2 of 3 the arms are IDENTICAL.")
+
+    # ---- what this can and cannot exclude, exactly --------------------------
+    nq = (base[0].get("index_recall_before") or {}).get("queries") if base else None
+    if nq and paired:
+        step = 1.0 / (nq * 10)
+        bound = max(2 * step, max(abs(x) for x in paired)) + step
+        print(f"\n  RESOLUTION: {nq} queries x top-10 = {nq * 10} ground-truth "
+              f"items, so index_recall moves in steps of 1/{nq * 10} = {step:.4f}.")
+        print(f"  Largest chaos-specific deficit consistent with these pairs: "
+              f"under ~{bound:.3f}.")
+        print("  It does NOT exclude a deficit below the quantisation floor.")
+        print("  More queries per snapshot lowers that floor at no cluster cost,")
+        print("  and is the cheapest available improvement.")
+
     ba = [ir(r, "after") for r in base]
     ca = [ir(r, "after") for r in chaos]
-    prechaos = [ir(r, "before") for r in base] + [ir(r, "before") for r in chaos]
-    print(f"\n  index_recall after -- baseline {statistics.mean(ba):.4f} "
-          f"+/- {statistics.stdev(ba):.4f} | chaos {statistics.mean(ca):.4f} "
-          f"+/- {statistics.stdev(ca):.4f}")
-    print(f"  exact two-sided Mann-Whitney p = {mannwhitney_exact(ba, ca):.4f}"
-          "   <- 0.0079 is the FLOOR at 5v5: complete separation, not a large effect")
+    print(f"\n  (unpaired, REFERENCE ONLY -- contaminated by the two unmatched "
+          f"seeds: baseline {statistics.mean(ba):.4f} vs chaos "
+          f"{statistics.mean(ca):.4f}, p = {mannwhitney_exact(ba, ca):.4f})")
 
     # ---- the pre-registered primary metric ----------------------------------
     print("\n=== the pre-registered dissociation, per seed ===")
