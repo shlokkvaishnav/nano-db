@@ -390,9 +390,48 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
     log("")
     # Amendment 2: the class is shared scratch and was never cleared, so the
     # ANN searched a superset of the ground-truth corpus. Reset per run.
-    if not clear_objects(dry):
-        rec["aborted"] = "clearing the corpus failed"
-        return rec
+    # Amendment 4 (review round 1 follow-on): A FRESH CLASS PER RUN.
+    #
+    # Amendment 2b cleared the corpus by batch-deleting the objects, to avoid
+    # the Raft/shard problems of recreating the class. It broke the very thing
+    # this experiment measures. The class carries
+    # `deletionStrategy: NoAutomatedResolution`, so deletion conflicts are never
+    # resolved, and after repeated batch deletes async repair STALLED
+    # PERMANENTLY: the victim sat at 5,000 objects against its peers' 10,000
+    # while hashbeat logged "iteration successfully completed", indefinitely.
+    #
+    # Measured, decisively: on a class that has never seen a delete, the same
+    # outage repairs 2,000/2,000 in 43.9s. On the batch-deleted class, repair
+    # had not converged an hour later.
+    #
+    # A fresh class per run has neither problem: no deletes, so no deletion
+    # conflicts and no tombstones; and the create happens between runs with
+    # every node up, not while the isolation probe has peers paused.
+    cls = f"RrdV{seed}{'Chaos' if chaos else 'Ctl'}"
+    if not dry:
+        t.CLASS_NAME = cls
+        st, resp = t.create_class(0)
+        if st != 200:
+            log(f"  FAILED to create {cls}: {st} {resp}")
+            rec["aborted"] = "class creation failed"
+            return rec
+        time.sleep(5)
+        okc, info = t.verify_class(0)
+        stn, nd = t.http_request(t.http_port(0), "GET", "/v1/nodes?output=verbose",
+                                 None, timeout=20)
+        holders = sum(1 for n in (nd.get("nodes") or []) if n.get("shards"))
+        if not okc or holders != 3:
+            # The replica-placement race that produced "cannot achieve
+            # consistency level ALL" -- caught here rather than as a silent
+            # partial write.
+            log(f"  FAILED placement for {cls}: verify={okc} {info} "
+                f"holders={holders}/3")
+            rec["aborted"] = f"class placed on {holders}/3 replicas"
+            return rec
+        shard = ia.shard_name(0)
+        rec["class"] = cls
+        rec["shard"] = shard
+        log(f"  fresh class {cls}, shard {shard}, 3/3 replicas")
     # Amendment 2a: recreating the class MINTS A NEW SHARD, so a shard name read
     # once at startup is stale for every run after the first reset, and every
     # per-id probe then queries a shard that does not exist and returns nothing.
