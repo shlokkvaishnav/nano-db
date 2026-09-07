@@ -250,6 +250,26 @@ def recovery_with_censoring(series):
     return out
 
 
+def shard_for_class(cls, node=0):
+    """The shard belonging to THIS class.
+
+    `internal_api.shard_name()` returns the first shard of the first node
+    regardless of class -- correct while exactly one class existed, and wrong the
+    moment Amendment 4 started making one per run. It silently handed back
+    another class's shard, so every per-id probe queried the wrong index and
+    reported held=0, which aborted all ten runs.
+
+    Latent shared-code defect (#43/#46/#48/#56 all call it); scoped locally here
+    rather than changed underneath closed studies.
+    """
+    st, nodes = t.nodes_status(node, verbose=True)
+    for n in (nodes.get("nodes") or []):
+        for sh in (n.get("shards") or []):
+            if sh.get("class") == cls:
+                return sh.get("name")
+    return None
+
+
 def clear_objects(dry, node=0):
     """Empty the class WITHOUT touching the schema.
 
@@ -428,17 +448,14 @@ def one_run(seed, chaos, shard, dry, distance="cosine"):
                 f"holders={holders}/3")
             rec["aborted"] = f"class placed on {holders}/3 replicas"
             return rec
-        shard = ia.shard_name(0)
+        shard = shard_for_class(cls)
+        if not shard:
+            log(f"  FAILED: no shard found for {cls}")
+            rec["aborted"] = "no shard for class"
+            return rec
         rec["class"] = cls
         rec["shard"] = shard
         log(f"  fresh class {cls}, shard {shard}, 3/3 replicas")
-    # Amendment 2a: recreating the class MINTS A NEW SHARD, so a shard name read
-    # once at startup is stale for every run after the first reset, and every
-    # per-id probe then queries a shard that does not exist and returns nothing.
-    # Re-read it from the cluster after each reset.
-    if not dry:
-        shard = ia.shard_name(0)
-        rec["shard"] = shard
     log(f"--- seed {seed} chaos={chaos} ---")
     log(f"  writing BASE corpus ({DIVERGENCE} ids) at consistency ALL")
     if not dry:
